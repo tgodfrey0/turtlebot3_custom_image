@@ -1,0 +1,46 @@
+{
+   "builders": [
+     {
+       "type": "arm-image",
+       "iso_url": "https://cdimage.ubuntu.com/releases/22.04.4/release/ubuntu-22.04.4-live-server-arm64.iso",
+       "iso_checksum": "sha256:74b8a9f71288ae0ac79075c2793a0284ef9b9729a3dcf41b693d95d724622b65",
+       "target_image_size": 2032332800
+      }
+   ],
+"provisioners": [
+    {
+      "type": "file",
+      "source": "files/set_hostname.sh",
+      "destination": "/root/set_hostname.sh"
+    },
+    {
+      "type": "file",
+      "source": "files/hostname_reset.service",
+      "destination": "/etc/systemd/system/set_turtlebot_hostname.service"
+    },
+    {
+      "type": "shell",
+      "script": "scripts/1_packages.sh"
+    },
+    {
+      "type": "shell",
+      "script": "scripts/2_setup_hostname_service.sh"
+    },
+    {
+      "type": "shell",
+      "script": "scripts/3_general_system_setup.sh"
+    },
+    {
+      "type": "shell",
+      "script": "scripts/4_install_ros_humble.sh"
+    },
+    {
+      "type": "shell",
+      "script": "scripts/5_turtlebot3_setup.sh"
+    },
+    {
+      "type": "shell",
+      "script": "scripts/6_opencr_setup.sh"
+    }
+  ]
+}

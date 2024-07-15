@@ -1,0 +1,13 @@
+[Unit]
+Description=Hostname setting service
+Before=network.target
+
+[Service]
+ExecStart=/root/set_hostname.sh
+ExecReload=/root/set_hostname.sh
+Restart=on-failure
+Type=oneshot
+User=root
+
+[Install]
+WantedBy=default.target
