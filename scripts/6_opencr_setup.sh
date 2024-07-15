@@ -15,3 +15,5 @@ tar -xvf ./opencr_update.tar.bz2
 
 cd /root/opencr_update
 ./update.sh $OPENCR_PORT $OPENCR_MODEL.opencr
+
+#TODO Make this run after flashing? 
