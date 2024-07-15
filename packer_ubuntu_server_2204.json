@@ -1,13 +1,64 @@
 {
-   "builders": [
-     {
-       "type": "arm-image",
-       "iso_url": "https://cdimage.ubuntu.com/releases/22.04.4/release/ubuntu-22.04.4-live-server-arm64.iso",
-       "iso_checksum": "sha256:74b8a9f71288ae0ac79075c2793a0284ef9b9729a3dcf41b693d95d724622b65",
-       "target_image_size": 2032332800
+  "variables": {
+    "NAME": "",
+    "VERSION": "",
+    "SKIP_COMPRESSION": "false"
+  },
+  "builders": [
+    {
+      "type": "arm",
+      "file_urls": ["https://cdimage.ubuntu.com/releases/22.04.4/release/ubuntu-22.04.4-preinstalled-server-arm64+raspi.img.xz"],
+      "file_checksum_url": "https://cdimage.ubuntu.com/releases/22.04.4/release/SHA256SUMS",
+      "file_checksum_type": "sha256",
+      "file_target_extension": "xz",
+      "file_unarchive_cmd": ["xz", "--decompress", "$ARCHIVE_PATH"],
+      "image_build_method": "reuse",
+      "image_size": GET DECOMPRESSED IMAGE SIZE,
+      "image_path": "{{user `NAME`}}-image-{{user `VERSION`}}.iso",
+      "image_type": "dos",
+      "image_partitions": [
+        {
+          "name": "boot",
+          "type": "c",
+          "start_sector": "2048",
+          "filesystem": "fat",
+          "size": "256M",
+          "mountpoint": "/boot"
+        },
+        {
+          "name": "root",
+          "type": "83",
+          "start_sector": "526336",
+          "filesystem": "ext4",
+          "size": "0",
+          "mountpoint": "/"
+        }
+      ],
+      "image_chroot_env": ["PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"],
+      "qemu_binary_source_path": "/usr/bin/qemu-arm-static",
+      "qemu_binary_destination_path": "/usr/bin/qemu-arm-static"
+    }
+    "image_partitions": [
+      {
+        "name": "boot",
+        "type": "c",
+        "start_sector": "2048",
+        "filesystem": "fat",
+        "size": "256M",
+        "mountpoint": "/boot/firmware"
+      },
+      {
+        "name": "root",
+        "type": "83",
+        "start_sector": "526336",
+        "filesystem": "ext4",
+        "size": "2.8G",
+        "mountpoint": "/"
       }
-   ],
-"provisioners": [
+
+    ],
+  ],
+  "provisioners": [
     {
       "type": "file",
       "source": "files/set_hostname.sh",
@@ -20,27 +71,24 @@
     },
     {
       "type": "shell",
-      "script": "scripts/1_packages.sh"
-    },
+      "scripts": [
+        "scripts/1_packages.sh",
+        "scripts/2_setup_hostname_service.sh",
+        "scripts/3_general_system_setup.sh",
+        "scripts/4_install_ros_humble.sh",
+        "scripts/5_turtlebot3_setup.sh",
+        "scripts/6_opencr_setup.sh"
+      ]
+    }
+  ],
+  "post-processors": [
     {
-      "type": "shell",
-      "script": "scripts/2_setup_hostname_service.sh"
-    },
-    {
-      "type": "shell",
-      "script": "scripts/3_general_system_setup.sh"
-    },
-    {
-      "type": "shell",
-      "script": "scripts/4_install_ros_humble.sh"
-    },
-    {
-      "type": "shell",
-      "script": "scripts/5_turtlebot3_setup.sh"
-    },
-    {
-      "type": "shell",
-      "script": "scripts/6_opencr_setup.sh"
+      "type": "shell-local",
+      "inline": [
+        "if [ \"{{user `SKIP_COMPRESSION`}}\" != \"true\" ]; then",
+        "xz -vT0 \"{{user `NAME`}}-image-{{user `VERSION`}}.img\"",
+        "fi"
+      ]
     }
   ]
 }
