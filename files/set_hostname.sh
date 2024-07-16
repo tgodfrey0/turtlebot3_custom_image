@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eux -o pipefail
 
 if [[ -f /root/.set_hostname ]]; then
   NEW_HOSTNAME="turtlebot_$(ip -brief link show | grep -v LOOPBACK | grep -v "DOWN" | head -n 1 | sed 's/ /\n/g' | grep -v "^$" | head -n 3 | tail -n 1 | cut -d ':' -f4- | tr ":" "_")"

@@ -1,4 +1,5 @@
 #!/bin/bash
+
 if [ "$1" == "nocompress" ]; then
     SKIP_COMPRESSION="true"
 else

@@ -1,10 +1,11 @@
 #!/bin/bash
+set -eux -o pipefail
 
 echo -e "\e[1;32mOpenCR setup\e[0m"
 
 dpkg --add-architecture armhf
-apt update
-apt install libc6:armhf
+apt-get update
+apt-get install libc6:armhf
 
 export OPENCR_PORT=/dev/ttyACM0
 export OPENCR_MODEL=waffle

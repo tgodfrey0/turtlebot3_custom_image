@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eux -o pipefail
 
 echo -e "\e[1;32mInstalling hostname service\e[0m"
 
