@@ -8,8 +8,8 @@ fi
 NAME="tb3"
 VERSION="$(git describe --tags --always)"
 
-rm -f *-image-*.iso.xz
-rm -f *-image-*.iso
+rm -f *-image-*.img.xz
+rm -f *-image-*.img
 
 docker run --rm --privileged \
     -v /dev:/dev \
