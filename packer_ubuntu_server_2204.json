@@ -13,8 +13,8 @@
       "file_target_extension": "xz",
       "file_unarchive_cmd": ["xz", "--decompress", "$ARCHIVE_PATH"],
       "image_build_method": "resize",
-      "image_size": "16G",
-      "image_path": "{{user `NAME`}}-image-{{user `VERSION`}}.iso",
+      "image_size": "8G",
+      "image_path": "{{user `NAME`}}-image-{{user `VERSION`}}.img",
       "image_type": "dos",
       "image_partitions": [
         {
@@ -51,12 +51,20 @@
       "destination": "/etc/systemd/system/set_turtlebot_hostname.service"
     },
     {
+      "type": "file",
+      "source": "files/opencr_setup.service",
+      "destination": "/etc/systemd/system/setup_opencr.service"
+    },
+    {
       "type": "shell",
-      "inline": [
-        "ls /etc",
-        "cat /etc/resolv.conf",
-        "echo nameserver 8.8.8.8 > /etc/resolv.conf",
-        "apt-get update"
+      "scripts": [
+        "scripts/00_set_dns.sh",
+        "scripts/10_packages.sh",
+        "scripts/20_setup_hostname_service.sh",
+        "scripts/30_general_system_setup.sh",
+        "scripts/40_install_ros_humble.sh",
+        "scripts/50_turtlebot3_setup.sh",
+        "scripts/60_opencr_setup.sh"
       ]
     }
   ],

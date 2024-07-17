@@ -9,8 +9,10 @@ This repo provides a way to build a TurtleBot3 image with the necessary setup al
 Creating the image is simple
 
 ```bash
-sudo ./build.sh
+./build.sh
 ```
+
+The output image is automatically compressed once created. To prevent this run `./build.sh nocompress`.
 
 The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
@@ -34,6 +36,6 @@ When creating the image:
 When booting for the first time:
 
 - The hostname is changed to `turtlebot_XX_XX_XX` (where `XX_XX_XX` are the last three octets of the MAC address)
-  - This only runs if the file `/.set_hostname` is present. If you play with the hostname and want to reset it touch that file and reboot and the service will run.
+  - This only runs if the file `/root/.set_hostname` is present. If you play with the hostname and want to reset it touch that file and reboot and the service will run.
 - The OpenCR board is configured
-  - This runs at boot so the RPi should be connected to the OpenCR board during boot. This service also only runs if the file `/.setup_opencr` is present so if the board needs to be reconfigured just recreate that file and reboot.
+  - This runs at boot so the RPi should be connected to the OpenCR board during boot. This service also only runs if the file `/root/.setup_opencr` is present so if the board needs to be reconfigured just recreate that file and reboot.
