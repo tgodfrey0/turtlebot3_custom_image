@@ -6,7 +6,7 @@ This repo provides a way to build a TurtleBot3 image with the necessary setup al
 
 ## Usage
 
-Creating the image is simple
+Creating the image is simple.
 
 ```bash
 ./build.sh
@@ -17,8 +17,12 @@ The output image is automatically compressed once created. To prevent this run `
 The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
 ```bash
-
+sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> status=progress bs=4M
 ```
+
+**MAKE SURE YOU SELECT THE CORRECT DRIVE -- the above command will wipe the drive!**
+
+The address of the MicroSD card can be found with `sudo fdisk -l`.
 
 ## Features
 
@@ -32,6 +36,9 @@ When creating the image:
 - Install ROS2 Humble Hawksbill
 - Install the TurtleBot3 ROS packages
 - Install the OpenCR packages
+- *TODO: Edit the GRUB config to allow the Pi Camera to be used*
+- *TODO: Configures network details to allow for connection on boot (if the user has configured this in `scripts/XX_setup_network.sh`*
+- *TODO: Enables SSH access*
 
 When booting for the first time:
 
