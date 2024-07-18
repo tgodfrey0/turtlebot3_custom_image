@@ -22,7 +22,7 @@ The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
 ## Features
 
-This script completes several tasks automatically. 
+This script completes several tasks automatically.
 
 When creating the image:
 
