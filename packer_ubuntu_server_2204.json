@@ -62,6 +62,10 @@
     },
     {
       "type": "shell",
+      "environment_vars": [
+          "DEBIAN_FRONTEND=noninteractive",
+          "NEEDRESTART_MODE=a"
+      ],
       "scripts": [
         "scripts/00_set_dns.sh",
         "scripts/10_packages.sh",
@@ -69,7 +73,8 @@
         "scripts/30_general_system_setup.sh",
         "scripts/40_install_ros_humble.sh",
         "scripts/50_turtlebot3_setup.sh",
-        "scripts/60_opencr_setup.sh"
+        "scripts/60_opencr_setup.sh",
+        "scripts/70_setup_camera.sh"
       ]
     }
   ],
