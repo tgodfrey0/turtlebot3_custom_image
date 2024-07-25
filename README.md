@@ -12,7 +12,7 @@ Creating the image is simple.
 ./build.sh
 ```
 
-The output image is automatically compressed once created. To prevent this run `./build.sh nocompress`.
+This will output a `.img` with the name `tb3-image-<GIT TAG>.img`. The output image is automatically compressed once created. To prevent this run `./build.sh nocompress`.
 
 The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
@@ -36,13 +36,19 @@ When creating the image:
 - Install ROS2 Humble Hawksbill
 - Install the TurtleBot3 ROS packages
 - Install the OpenCR packages
-- *TODO: Edit the GRUB config to allow the Pi Camera to be used*
-- *TODO: Configures network details to allow for connection on boot (if the user has configured this in `scripts/XX_setup_network.sh`*
-- *TODO: Enables SSH access*
+- Edit the firmware config to allow the Pi Camera to be used
+- Enables SSH access
+- *TODO: Configures network details to allow for connection on boot (if the user has configured this in `scripts/XX_setup_network.sh`)*
 
 When booting for the first time:
 
-- The hostname is changed to `turtlebot_XX_XX_XX` (where `XX_XX_XX` are the last three octets of the MAC address)
-  - This only runs if the file `/root/.set_hostname` is present. If you play with the hostname and want to reset it touch that file and reboot and the service will run.
+- The hostname is changed to `turtlebot_XX_XX_XX` (where `XX_XX_XX` are the last three octets of the robot's MAC address)
+  - This only runs if the file `/root/.setup_hostname` is present. If you play with the hostname and want to reset it touch that file and reboot and the service will run.
 - The OpenCR board is configured
   - This runs at boot so the RPi should be connected to the OpenCR board during boot. This service also only runs if the file `/root/.setup_opencr` is present so if the board needs to be reconfigured just recreate that file and reboot.
+- A firewall exception is added for SSH
+  - This only runs if the file `/root/.setup_firewall` is present.
+- The Pi Camera is enabled in the `/boot/firmware/` configuration file
+  - This only runs if the file `/root/.setup_camera` is present.
+
+### ***After booting the first time, the system must be restarted for several changes to take effect***

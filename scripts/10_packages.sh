@@ -2,9 +2,9 @@
 set -eux -o pipefail
 
 echo -e "\e[1;32mUpdating Packages\e[0m"
-apt-get update -y
-apt-get upgrade -y
-apt-get auto-remove -y
-apt-get install -y network-manager git curl ssh nano ffmpeg openssh-server
+apt-get -y update
+apt-get -y upgrade
+apt-get -y auto-remove
+apt-get -y install network-manager git curl ssh nano ffmpeg openssh-server locales
 
 #TODO Change nointeractive for all scripts

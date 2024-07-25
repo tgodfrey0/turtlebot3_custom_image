@@ -5,7 +5,7 @@ echo -e "\e[1;32mInstalling ROS Humble\e[0m"
 
 locale  # check for UTF-8
 
-apt-get update -y && apt-get -y install locales
+apt-get -y update && apt-get -y install 
 locale-gen en_US en_US.UTF-8
 update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 export LANG=en_US.UTF-8

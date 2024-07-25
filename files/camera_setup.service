@@ -1,0 +1,13 @@
+[Unit]
+Description=Camera setup service
+After=network.target
+
+[Service]
+ExecStart=/root/setup_camera.sh
+ExecReload=/root/setup_camera.sh
+Restart=on-failure
+Type=oneshot
+User=root
+
+[Install]
+WantedBy=default.target

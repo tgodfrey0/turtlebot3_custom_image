@@ -3,9 +3,8 @@ set -eux -o pipefail
 
 echo -e "\e[1;32mInstalling hostname service\e[0m"
 
-touch /root/.set_hostname
+touch /root/.setup_hostname
 
-chmod +x /root/set_hostname.sh
+chmod +x /root/setup_hostname.sh
 
-systemctl enable set_turtlebot_hostname.service
-# systemctl start set_turtlebot_hostname.service
+systemctl enable hostname_setup.service

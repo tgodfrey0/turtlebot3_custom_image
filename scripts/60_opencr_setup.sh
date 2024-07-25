@@ -18,4 +18,4 @@ touch /root/.setup_opencr
 
 chmod +x /root/setup_opencr.sh
 
-systemctl enable setup_opencr.service
+systemctl enable opencr_setup.service

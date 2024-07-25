@@ -42,13 +42,13 @@
   "provisioners": [
     {
       "type": "file",
-      "source": "files/set_hostname.sh",
-      "destination": "/root/set_hostname.sh"
+      "source": "files/setup_hostname.sh",
+      "destination": "/root/setup_hostname.sh"
     },
     {
       "type": "file",
-      "source": "files/hostname_reset.service",
-      "destination": "/etc/systemd/system/set_turtlebot_hostname.service"
+      "source": "files/hostname_setup.service",
+      "destination": "/etc/systemd/system/hostname_setup.service"
     },
     {
       "type": "file",
@@ -58,7 +58,27 @@
     {
       "type": "file",
       "source": "files/opencr_setup.service",
-      "destination": "/etc/systemd/system/setup_opencr.service"
+      "destination": "/etc/systemd/system/opencr_setup.service"
+    },
+    {
+      "type": "file",
+      "source": "files/setup_camera.sh",
+      "destination": "/root/setup_camera.sh"
+    },
+    {
+      "type": "file",
+      "source": "files/camera_setup.service",
+      "destination": "/etc/systemd/system/camera_setup.service"
+    },
+    {
+      "type": "file",
+      "source": "files/setup_firewall.sh",
+      "destination": "/root/setup_firewall.sh"
+    },
+    {
+      "type": "file",
+      "source": "files/firewall_setup.service",
+      "destination": "/etc/systemd/system/firewall_setup.service"
     },
     {
       "type": "shell",

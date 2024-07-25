@@ -6,4 +6,9 @@ echo -e 'APT::Periodic::Update-Package-Lists "0";\nAPT::Periodic::Unattended-Upg
 systemctl mask systemd-networkd-wait-online.service
 systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 systemctl enable ssh
-ufw allow ssh
+
+touch /root/.setup_firewall
+
+chmod +x /root/setup_firewall.sh
+
+systemctl enable firewall_setup.service
