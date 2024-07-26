@@ -2,7 +2,13 @@
   "variables": {
     "NAME": "",
     "VERSION": "",
-    "SKIP_COMPRESSION": "false"
+    "SKIP_COMPRESSION": "false",
+    "ADD_CONNECTION": "false",
+    "CONNECTION_NAME": "",
+    "CONNECTION_TYPE": "",
+    "INTERFACE": "",
+    "SSID": "",
+    "PASSWORD": ""
   },
   "builders": [
     {
@@ -95,6 +101,22 @@
         "scripts/50_turtlebot3_setup.sh",
         "scripts/60_opencr_setup.sh",
         "scripts/70_setup_camera.sh"
+      ]
+    },
+    {
+      "type": "shell",
+      "environment_vars": [
+          "DEBIAN_FRONTEND=noninteractive",
+          "NEEDRESTART_MODE=a",
+          "ADD_CONNECTION={{user ADD_CONNECTION``}}",
+          "CONNECTION_NAME={{user `CONNECTION_NAME`}}",
+          "CONNECTION_TYPE={{user `CONNECTION_TYPE`}}",
+          "INTERFACE={{user `INTERFACE`}}",
+          "SSID={{user `SSID`}}",
+          "PASSWORD={{user `PASSWORD`}}"
+      ],
+      "scripts": [
+        "scripts/80_add_connection.sh"
       ]
     }
   ],

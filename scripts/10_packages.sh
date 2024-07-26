@@ -7,4 +7,3 @@ apt-get -y upgrade
 apt-get -y auto-remove
 apt-get -y install network-manager git curl ssh nano ffmpeg openssh-server locales
 
-#TODO Change nointeractive for all scripts
