@@ -32,9 +32,9 @@ rm -f *-image-*.img
 if [ "$ADD_CONNECTION" = "true" ]; then
   echo "Adding network connection..."
 
-  read -p "Connection name: " CONNECTION_NAME
-  read -p "Connection type (e.g., ethernet, wifi): " CONNECTION_TYPE
-  read -p "Interface name (e.g., eth0, wlp0s20f3): " INTERFACE
+  # read -p "Connection name: " CONNECTION_NAME
+  # read -p "Connection type (e.g., ethernet, wifi): " CONNECTION_TYPE
+  # read -p "Interface name (e.g., eth0, wlp0s20f3): " INTERFACE
   read -p "SSID (Leave blank if ethernet): " SSID
   read -p -s "Password (Leave blank if N/A): " PASSWORD
 fi
