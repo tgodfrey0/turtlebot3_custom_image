@@ -13,6 +13,8 @@ git clone -b humble-devel https://github.com/ROBOTIS-GIT/turtlebot3.git
 git clone -b ros2-devel https://github.com/ROBOTIS-GIT/ld08_driver.git
 cd /root/turtlebot3_ws/src/turtlebot3
 rm -r turtlebot3_cartographer turtlebot3_navigation2
+cd /root/turtlebot3_ws/src/
+git clone https://github.com/tgodfrey0/turtlebot3_mrs_launcher.git
 cd /root/turtlebot3_ws/
 echo 'source /opt/ros/humble/setup.bash' >> /etc/profile.d/90-turtlebot-ros-profile.sh
 source /etc/profile.d/90-turtlebot-ros-profile.sh
@@ -28,4 +30,5 @@ echo 'export ROS_DOMAIN_ID=89' >> /etc/profile.d/90-turtlebot-ros-profile.sh
 echo 'export LDS_MODEL=LDS-02' >> /etc/profile.d/90-turtlebot-ros-profile.sh
 echo 'export TURTLEBOT3_MODEL=waffle_pi' >> /etc/profile.d/90-turtlebot-ros-profile.sh
 echo 'alias bringup="ros2 launch turtlebot3_bringup robot.launch.py"' >> /etc/profile.d/90-turtlebot-ros-profile.sh
+echo 'alias mrs_bringup="ros2 launch turtlebot3_mrs_launcher turtlebot3_mrs_bringup.launch.py"' >> /etc/profile.d/90-turtlebot-ros-profile.sh
 source /etc/profile.d/90-turtlebot-ros-profile.sh

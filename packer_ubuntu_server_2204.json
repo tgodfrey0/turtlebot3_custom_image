@@ -68,6 +68,16 @@
     },
     {
       "type": "file",
+      "source": "files/setup_ros.sh",
+      "destination": "/root/setup_ros.sh"
+    },
+    {
+      "type": "file",
+      "source": "files/ros_setup.service",
+      "destination": "/etc/systemd/system/ros_setup.service"
+    },
+    {
+      "type": "file",
       "source": "files/setup_camera.sh",
       "destination": "/root/setup_camera.sh"
     },

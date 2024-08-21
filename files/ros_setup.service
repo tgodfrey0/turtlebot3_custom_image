@@ -1,0 +1,12 @@
+[Unit]
+Description=ROS setup service
+
+[Service]
+ExecStart=/root/setup_ros.sh
+ExecReload=/root/setup_ros.sh
+Restart=on-failure
+Type=oneshot
+User=root
+
+[Install]
+WantedBy=default.target
