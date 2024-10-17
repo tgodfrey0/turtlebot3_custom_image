@@ -26,7 +26,7 @@ cp `ros2 pkg prefix turtlebot3_bringup`/share/turtlebot3_bringup/script/99-turtl
 udevadm control --reload-rules
 udevadm trigger
 
-echo 'export ROS_DOMAIN_ID=89' >> /etc/profile.d/90-turtlebot-ros-profile.sh
+echo '# export ROS_DOMAIN_ID=0' >> /etc/profile.d/90-turtlebot-ros-profile.sh
 echo 'export LDS_MODEL=LDS-02' >> /etc/profile.d/90-turtlebot-ros-profile.sh
 echo 'export TURTLEBOT3_MODEL=waffle_pi' >> /etc/profile.d/90-turtlebot-ros-profile.sh
 echo 'alias bringup="ros2 launch turtlebot3_bringup robot.launch.py"' >> /etc/profile.d/90-turtlebot-ros-profile.sh
