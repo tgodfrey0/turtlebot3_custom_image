@@ -13,7 +13,9 @@
   "builders": [
     {
       "type": "arm",
-      "file_urls": ["https://cdimage.ubuntu.com/releases/22.04.4/release/ubuntu-22.04.4-preinstalled-server-arm64+raspi.img.xz"],
+      "file_urls": [
+        "https://cdimage.ubuntu.com/releases/22.04.4/release/ubuntu-22.04.4-preinstalled-server-arm64+raspi.img.xz"
+      ],
       "file_checksum_url": "https://cdimage.ubuntu.com/releases/22.04.4/release/SHA256SUMS",
       "file_checksum_type": "sha256",
       "file_target_extension": "xz",
@@ -40,7 +42,9 @@
           "mountpoint": "/"
         }
       ],
-      "image_chroot_env": ["PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"],
+      "image_chroot_env": [
+        "PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+      ],
       "qemu_binary_source_path": "/usr/bin/qemu-arm-static",
       "qemu_binary_destination_path": "/usr/bin/qemu-arm-static"
     }
@@ -97,10 +101,15 @@
       "destination": "/etc/systemd/system/firewall_setup.service"
     },
     {
+      "type": "file",
+      "source": "files/get_hostname.py",
+      "destination": "/root/get_hostname.py"
+    },
+    {
       "type": "shell",
       "environment_vars": [
-          "DEBIAN_FRONTEND=noninteractive",
-          "NEEDRESTART_MODE=a"
+        "DEBIAN_FRONTEND=noninteractive",
+        "NEEDRESTART_MODE=a"
       ],
       "scripts": [
         "scripts/00_set_dns.sh",
@@ -116,18 +125,16 @@
     {
       "type": "shell",
       "environment_vars": [
-          "DEBIAN_FRONTEND=noninteractive",
-          "NEEDRESTART_MODE=a",
-          "ADD_CONNECTION={{user ADD_CONNECTION``}}",
-          "CONNECTION_NAME={{user `CONNECTION_NAME`}}",
-          "CONNECTION_TYPE={{user `CONNECTION_TYPE`}}",
-          "INTERFACE={{user `INTERFACE`}}",
-          "SSID={{user `SSID`}}",
-          "PASSWORD={{user `PASSWORD`}}"
+        "DEBIAN_FRONTEND=noninteractive",
+        "NEEDRESTART_MODE=a",
+        "ADD_CONNECTION={{user ADD_CONNECTION``}}",
+        "CONNECTION_NAME={{user `CONNECTION_NAME`}}",
+        "CONNECTION_TYPE={{user `CONNECTION_TYPE`}}",
+        "INTERFACE={{user `INTERFACE`}}",
+        "SSID={{user `SSID`}}",
+        "PASSWORD={{user `PASSWORD`}}"
       ],
-      "scripts": [
-        "scripts/80_add_connection.sh"
-      ]
+      "scripts": ["scripts/80_add_connection.sh"]
     }
   ],
   "post-processors": [
