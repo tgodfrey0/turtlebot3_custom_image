@@ -51,65 +51,28 @@
   ],
   "provisioners": [
     {
-      "type": "file",
-      "source": "files/setup_hostname.sh",
-      "destination": "/root/setup_hostname.sh"
+      "type": "shell",
+      "inline": ["mkdir /root/setup_scripts/"]
     },
     {
       "type": "file",
-      "source": "files/hostname_setup.service",
-      "destination": "/etc/systemd/system/hostname_setup.service"
+      "source": "files/scripts/",
+      "destination": "/root/setup_scripts"
     },
     {
       "type": "file",
-      "source": "files/setup_opencr.sh",
-      "destination": "/root/setup_opencr.sh"
-    },
-    {
-      "type": "file",
-      "source": "files/opencr_setup.service",
-      "destination": "/etc/systemd/system/opencr_setup.service"
-    },
-    {
-      "type": "file",
-      "source": "files/setup_ros.sh",
-      "destination": "/root/setup_ros.sh"
-    },
-    {
-      "type": "file",
-      "source": "files/ros_setup.service",
-      "destination": "/etc/systemd/system/ros_setup.service"
-    },
-    {
-      "type": "file",
-      "source": "files/setup_camera.sh",
-      "destination": "/root/setup_camera.sh"
-    },
-    {
-      "type": "file",
-      "source": "files/camera_setup.service",
-      "destination": "/etc/systemd/system/camera_setup.service"
-    },
-    {
-      "type": "file",
-      "source": "files/setup_firewall.sh",
-      "destination": "/root/setup_firewall.sh"
-    },
-    {
-      "type": "file",
-      "source": "files/firewall_setup.service",
-      "destination": "/etc/systemd/system/firewall_setup.service"
-    },
-    {
-      "type": "file",
-      "source": "files/get_hostname.py",
-      "destination": "/root/get_hostname.py"
+      "source": "files/services/",
+      "destination": "/etc/systemd/system"
     },
     {
       "type": "shell",
       "environment_vars": [
         "DEBIAN_FRONTEND=noninteractive",
-        "NEEDRESTART_MODE=a"
+        "NEEDRESTART_MODE=a",
+        "ADD_CONNECTION={{user `ADD_CONNECTION`}}",
+        "CONNECTION_NAME={{user `SSID`}}",
+        "SSID={{user `SSID`}}",
+        "PASSWORD={{user `PASSWORD`}}"
       ],
       "scripts": [
         "scripts/00_set_dns.sh",
@@ -119,22 +82,9 @@
         "scripts/40_install_ros_humble.sh",
         "scripts/50_turtlebot3_setup.sh",
         "scripts/60_opencr_setup.sh",
-        "scripts/70_setup_camera.sh"
+        "scripts/70_setup_camera.sh",
+        "scripts/80_add_connection.sh"
       ]
-    },
-    {
-      "type": "shell",
-      "environment_vars": [
-        "DEBIAN_FRONTEND=noninteractive",
-        "NEEDRESTART_MODE=a",
-        "ADD_CONNECTION={{user ADD_CONNECTION``}}",
-        "CONNECTION_NAME={{user `CONNECTION_NAME`}}",
-        "CONNECTION_TYPE={{user `CONNECTION_TYPE`}}",
-        "INTERFACE={{user `INTERFACE`}}",
-        "SSID={{user `SSID`}}",
-        "PASSWORD={{user `PASSWORD`}}"
-      ],
-      "scripts": ["scripts/80_add_connection.sh"]
     }
   ],
   "post-processors": [

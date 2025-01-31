@@ -16,6 +16,6 @@ tar -xvf ./opencr_update.tar.bz2
 
 touch /root/.setup_opencr
 
-chmod +x /root/setup_opencr.sh
+chmod +x /root/setup_scripts/setup_opencr.sh
 
 systemctl enable opencr_setup.service

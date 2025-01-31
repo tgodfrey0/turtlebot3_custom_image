@@ -9,6 +9,6 @@ systemctl enable ssh
 
 touch /root/.setup_firewall
 
-chmod +x /root/setup_firewall.sh
+chmod +x /root/setup_scripts/setup_firewall.sh
 
 systemctl enable firewall_setup.service
