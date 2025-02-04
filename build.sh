@@ -2,9 +2,9 @@
 
 SKIP_COMPRESSION="false"
 ADD_CONNECTION="false"
-CONNECTION_NAME=""
-CONNECTION_TYPE=""
-INTERFACE=""
+# CONNECTION_NAME=""
+# CONNECTION_TYPE=""
+# INTERFACE=""
 SSID=""
 PASSWORD=""
 
@@ -39,7 +39,9 @@ if [ "$ADD_CONNECTION" = "true" ]; then
   read -r -s -p "Password (Leave blank if N/A): " PASSWORD
 fi
 
-docker run --rm --privileged \
+podman pull mkaczanowski/packer-builder-arm:latest
+
+sudo podman run --rm --privileged \
     --pid=host \
     -v /dev:/dev \
     -v ${PWD}:/build \
