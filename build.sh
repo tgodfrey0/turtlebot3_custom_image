@@ -16,6 +16,12 @@ for arg in "$@"; do
     addconnection)
       ADD_CONNECTION="true"
       ;;
+    waffle)
+      MODEL="waffle"
+      ;;
+    burger)
+      MODEL="burger"
+      ;;
     *)
       echo "Unknown argument: $arg" >&2
       exit 1
@@ -53,6 +59,8 @@ sudo podman run --rm --privileged \
     -var "ADD_CONNECTION=${ADD_CONNECTION}" \
     -var "SSID=${SSID}" \
     -var "PASSWORD=${PASSWORD}" \
+    -var "OPENCR_MODEL=${MODEL}" \
+    -var "TURTLEBOT3_MODEL=${MODEL}_pi" \
     packer_ubuntu_server_2204.json
 
 

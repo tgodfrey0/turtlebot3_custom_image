@@ -8,7 +8,9 @@
     "CONNECTION_TYPE": "",
     "INTERFACE": "",
     "SSID": "",
-    "PASSWORD": ""
+    "PASSWORD": "",
+    "OPENCR_MODEL": "",
+    "TURTLEBOT3_MODEL": ""
   },
   "builders": [
     {
@@ -72,7 +74,9 @@
         "ADD_CONNECTION={{user `ADD_CONNECTION`}}",
         "CONNECTION_NAME={{user `SSID`}}",
         "SSID={{user `SSID`}}",
-        "PASSWORD={{user `PASSWORD`}}"
+        "PASSWORD={{user `PASSWORD`}}",
+        "OPENCR_MODEL={{user `OPENCR_MODEL`",
+        "TURTLEBOT3_MODEL={{user `TURTLEBOT3_MODEL`"
       ],
       "scripts": [
         "scripts/00_set_dns.sh",

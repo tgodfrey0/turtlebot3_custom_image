@@ -9,10 +9,15 @@ This repo provides a way to build a TurtleBot3 image with the necessary setup al
 Creating the image is simple.
 
 ```bash
-./build.sh
+./build.sh <model>
 ```
 
 This will output a `.img` with the name `tb3-image-<GIT TAG>.img`. The output image is automatically compressed once created. To prevent this run `./build.sh nocompress`.
+
+`<model>` sets the type of TurtleBot3 for which you want to build the image. The options are:
+
+- `waffle`
+- `burger`
 
 The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
@@ -38,7 +43,7 @@ When creating the image:
 - Install the OpenCR packages
 - Edit the firmware config to allow the Pi Camera to be used
 - Enables SSH access
-- *TODO: Configures network details to allow for connection on boot (if the user has configured this in `scripts/XX_setup_network.sh`)*
+- _TODO: Configures network details to allow for connection on boot (if the user has configured this in `scripts/XX_setup_network.sh`)_
 
 When booting for the first time:
 
@@ -51,4 +56,4 @@ When booting for the first time:
 - The Pi Camera is enabled in the `/boot/firmware/` configuration file
   - This only runs if the file `/root/.setup_camera` is present.
 
-### ***After booting the first time, the system must be restarted for several changes to take effect***
+### **_After booting the first time, the system must be restarted for several changes to take effect_**

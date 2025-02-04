@@ -16,19 +16,22 @@ rm -r turtlebot3_cartographer turtlebot3_navigation2
 cd /root/turtlebot3_ws/src/
 git clone https://github.com/tgodfrey0/turtlebot3_mrs_launcher.git
 cd /root/turtlebot3_ws/
-echo 'source /opt/ros/humble/setup.bash' >> /etc/profile.d/90-turtlebot-ros-profile.sh
+echo 'source /opt/ros/humble/setup.bash' | sudo tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 source /etc/profile.d/90-turtlebot-ros-profile.sh
 colcon build --symlink-install --parallel-workers 1
-echo 'source /root/turtlebot3_ws/install/setup.bash' >> /etc/profile.d/90-turtlebot-ros-profile.sh
+echo 'source /root/turtlebot3_ws/install/setup.bash' | sudo tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 source /etc/profile.d/90-turtlebot-ros-profile.sh
 
-cp `ros2 pkg prefix turtlebot3_bringup`/share/turtlebot3_bringup/script/99-turtlebot3-cdc.rules /etc/udev/rules.d/
+cp "$(ros2 pkg prefix turtlebot3_bringup)"/share/turtlebot3_bringup/script/99-turtlebot3-cdc.rules /etc/udev/rules.d/
 udevadm control --reload-rules
 udevadm trigger
 
-echo '# export ROS_DOMAIN_ID=0' >> /etc/profile.d/90-turtlebot-ros-profile.sh
-echo 'export LDS_MODEL=LDS-02' >> /etc/profile.d/90-turtlebot-ros-profile.sh
-echo 'export TURTLEBOT3_MODEL=waffle_pi' >> /etc/profile.d/90-turtlebot-ros-profile.sh
-echo 'alias bringup="ros2 launch turtlebot3_bringup robot.launch.py"' >> /etc/profile.d/90-turtlebot-ros-profile.sh
-echo 'alias mrs_bringup="ros2 launch turtlebot3_mrs_launcher turtlebot3_mrs_bringup.launch.py"' >> /etc/profile.d/90-turtlebot-ros-profile.sh
+{
+echo '# export ROS_DOMAIN_ID=0'
+echo 'export LDS_MODEL=LDS-02'
+echo "export TURTLEBOT3_MODEL=$TURTLEBOT3_MODEL"
+echo 'alias bringup="ros2 launch turtlebot3_bringup robot.launch.py"'
+echo 'alias mrs_bringup="ros2 launch turtlebot3_mrs_launcher turtlebot3_mrs_bringup.launch.py"'
+} | sudo tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
+
 source /etc/profile.d/90-turtlebot-ros-profile.sh
