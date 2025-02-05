@@ -24,7 +24,7 @@
       "file_unarchive_cmd": ["xz", "--decompress", "$ARCHIVE_PATH"],
       "image_build_method": "resize",
       "image_size": "16G",
-      "image_path": "{{user `NAME`}}-image-{{user `VERSION`}}.img",
+      "image_path": "build/{{user `NAME`}}-{{user `TURTLEBOT3_MODEL`}}-image-{{user `VERSION`}}.img",
       "image_type": "dos",
       "image_partitions": [
         {
@@ -75,8 +75,8 @@
         "CONNECTION_NAME={{user `SSID`}}",
         "SSID={{user `SSID`}}",
         "PASSWORD={{user `PASSWORD`}}",
-        "OPENCR_MODEL={{user `OPENCR_MODEL`",
-        "TURTLEBOT3_MODEL={{user `TURTLEBOT3_MODEL`"
+        "OPENCR_MODEL={{user `OPENCR_MODEL`}}",
+        "TURTLEBOT3_MODEL={{user `TURTLEBOT3_MODEL`}}"
       ],
       "scripts": [
         "scripts/00_set_dns.sh",

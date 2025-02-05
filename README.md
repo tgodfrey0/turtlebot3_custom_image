@@ -4,6 +4,10 @@ This repo provides a way to build a TurtleBot3 image with the necessary setup al
 
 **Please send any feedback or questions to Toby Godfrey ([t.godfrey@soton.ac.uk](mailto:t.godfrey@soton.ac.uk)).**
 
+## Prerequisites
+
+This package uses Podman to run a container, so install Podman first.
+
 ## Usage
 
 Creating the image is simple.
@@ -43,7 +47,7 @@ When creating the image:
 - Install the OpenCR packages
 - Edit the firmware config to allow the Pi Camera to be used
 - Enables SSH access
-- _TODO: Configures network details to allow for connection on boot (if the user has configured this in `scripts/XX_setup_network.sh`)_
+- Configures network details to allow for WiFi connection on boot (if the user has given the argument `addconnection`)
 
 When booting for the first time:
 

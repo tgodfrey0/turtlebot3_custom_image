@@ -32,18 +32,37 @@ done
 NAME="tb3"
 VERSION="$(git describe --tags --always)"
 
-rm -f *-image-*.img.xz
-rm -f *-image-*.img
+# rm -f *-image-*.img.xz
+# rm -f *-image-*.img
 
 if [ "$ADD_CONNECTION" = "true" ]; then
   echo "Adding network connection..."
 
-  # read -p "Connection name: " CONNECTION_NAME
-  # read -p "Connection type (e.g., ethernet, wifi): " CONNECTION_TYPE
-  # read -p "Interface name (e.g., eth0, wlp0s20f3): " INTERFACE
-  read -r -p "SSID (Leave blank if ethernet): " SSID
+  read -r -p "SSID: " SSID
   read -r -s -p "Password (Leave blank if N/A): " PASSWORD
 fi
+
+echo "
+Configuration:
+--------------
+NAME: $NAME
+VERSION: $VERSION
+SKIP_COMPRESSION: $SKIP_COMPRESSION
+ADD_CONNECTION: $ADD_CONNECTION
+SSID: $SSID
+PASSWORD: ${PASSWORD//?/*}
+OPENCR_MODEL: $MODEL
+TURTLEBOT3_MODEL: ${MODEL}_pi
+
+Are these settings correct? (y/n): "
+read -r confirmation
+
+if [[ $confirmation != [Yy]* ]]; then
+  echo "Aborting operation."
+  exit 1
+fi
+
+echo "Proceeding with the build process..."
 
 podman pull mkaczanowski/packer-builder-arm:latest
 
