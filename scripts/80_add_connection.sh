@@ -3,15 +3,23 @@ set -eux -o pipefail
 
 #!/bin/bash
 
+## Not working
+
 if [[ "$ADD_CONNECTION" == "true" ]]; then
   echo -e "\e[1;32mAdding connection\e[0m"
-  wireless_interface=$(ip link show | grep -E 'wlan|wlp|wifi' | awk -F': ' '{print $2}' | tr -d ' ' | head -n 1)
-  if [ -z "$wireless_interface" ]; then
-      echo "No wireless interface found"
-      exit 1
-  fi
+  cat << EOF > /tmp/wifi_config.yaml
+  network:
+    version: 2
+    wifis:
+      wlan0:
+        access-points:
+          "$SSID":
+            password: "$PASSWORD"
+        dhcp4: true
+EOF
 
-  nmcli --offline connection add type wifi con-name "$CONNECTION_NAME" wifi.ssid $SSID wifi-sec.psk $PASSWORD
-  nmcli con add type wifi ifname "$wireless_interface" con-name "$SSID" ssid "$SSID" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$PASSWORD"
+  # Merge the new configuration with the existing one
+  sudo cp /etc/netplan/50-cloud-init.yaml /etc/netplan/50-cloud-init.yaml.bak
+  sudo sed -i '/wifis:/,/^[^ ]/!b; /^[^ ]/i\    wlan0:\n      access-points:\n        "'$SSID'":\n          password: "'$PASSWORD'"\n      dhcp4: true' /etc/netplan/50-cloud-init.yaml
 
 fi

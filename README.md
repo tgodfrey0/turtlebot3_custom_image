@@ -47,7 +47,7 @@ When creating the image:
 - Install the OpenCR packages
 - Edit the firmware config to allow the Pi Camera to be used
 - Enables SSH access
-- Configures network details to allow for WiFi connection on boot (if the user has given the argument `addconnection`)
+- ~~Configures network details to allow for WiFi connection on boot (if the user has given the argument `addconnection`)~~
 
 When booting for the first time:
 
