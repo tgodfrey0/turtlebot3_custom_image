@@ -26,7 +26,7 @@ This will output a `.img` with the name `tb3-image-<GIT TAG>.img`. The output im
 The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
 ```bash
-sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> status=progress bs=4M
+sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> status=progress bs=32M
 ```
 
 **MAKE SURE YOU SELECT THE CORRECT DRIVE -- the above command will wipe the drive!**
