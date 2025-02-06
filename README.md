@@ -33,6 +33,10 @@ sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> status=progress bs=32M
 
 The address of the MicroSD card can be found with `sudo fdisk -l`.
 
+### Connecting to WiFi
+
+This image does not have nay preset WiFi networks. The easiest way to add WiFi connectivity is to connect the RPi to a monitor for the first time and run `nmtui`.
+
 ## Features
 
 This script completes several tasks automatically.
