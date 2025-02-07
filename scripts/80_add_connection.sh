@@ -1,25 +1,15 @@
 #!/bin/bash
 set -eux -o pipefail
 
-#!/bin/bash
-
-## Not working
 
 if [[ "$ADD_CONNECTION" == "true" ]]; then
-  echo -e "\e[1;32mAdding connection\e[0m"
-  cat << EOF > /tmp/wifi_config.yaml
-  network:
-    version: 2
-    wifis:
-      wlan0:
-        access-points:
-          "$SSID":
-            password: "$PASSWORD"
-        dhcp4: true
-EOF
+  echo -e "\e[1;32mInstalling network service\e[0m"
 
-  # Merge the new configuration with the existing one
-  sudo cp /etc/netplan/50-cloud-init.yaml /etc/netplan/50-cloud-init.yaml.bak
-  sudo sed -i '/wifis:/,/^[^ ]/!b; /^[^ ]/i\    wlan0:\n      access-points:\n        "'$SSID'":\n          password: "'$PASSWORD'"\n      dhcp4: true' /etc/netplan/50-cloud-init.yaml
+  touch /root/.setup_network
 
+  chmod +x /root/setup_scripts/setup_network.sh
+
+  systemctl enable network_setup.service
+else
+  echo -e "\e[1;32mNot installing network service\e[0m"
 fi

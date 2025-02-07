@@ -4,7 +4,9 @@
     "VERSION": "",
     "SKIP_COMPRESSION": "false",
     "OPENCR_MODEL": "",
-    "TURTLEBOT3_MODEL": ""
+    "TURTLEBOT3_MODEL": "",
+    "ADD_CONNECTION": "false",
+    "SSID": ""
   },
   "builders": [
     {
@@ -66,7 +68,10 @@
         "DEBIAN_FRONTEND=noninteractive",
         "NEEDRESTART_MODE=a",
         "OPENCR_MODEL={{user `OPENCR_MODEL`}}",
-        "TURTLEBOT3_MODEL={{user `TURTLEBOT3_MODEL`}}"
+        "TURTLEBOT3_MODEL={{user `TURTLEBOT3_MODEL`}}",
+        "ADD_CONNECTION={{user `ADD_CONNECTION`}}",
+        "SSID={{user `SSID`}}",
+        "PASSWORD={{user `PASSWORD`}}"
       ],
       "scripts": [
         "scripts/00_set_dns.sh",
@@ -76,7 +81,8 @@
         "scripts/40_install_ros_humble.sh",
         "scripts/50_turtlebot3_setup.sh",
         "scripts/60_opencr_setup.sh",
-        "scripts/70_setup_camera.sh"
+        "scripts/70_setup_camera.sh",
+        "scripts/80_add_connection.sh"
       ]
     }
   ],

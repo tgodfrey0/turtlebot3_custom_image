@@ -1,10 +1,10 @@
 [Unit]
-Description=Hostname setting service
+Description=Network setting service
 Before=network.target
 
 [Service]
-ExecStart=/root/setup_scripts/setup_hostname.sh
-ExecReload=/root/setup_scripts/setup_hostname.sh
+ExecStart=/root/setup_scripts/setup_network.sh
+ExecReload=/root/setup_scripts/setup_network.sh
 Restart=on-failure
 Type=oneshot
 User=root
