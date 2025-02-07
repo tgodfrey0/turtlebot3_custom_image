@@ -1,10 +1,15 @@
 #!/bin/bash
 
+if ! sudo -n true 2>/dev/null; then
+  sudo -v
+  if [ $? -ne 0 ]; then
+    echo "sudo permissions are required"
+    exit 1
+  fi
+fi
+
 SKIP_COMPRESSION="false"
 ADD_CONNECTION="false"
-# CONNECTION_NAME=""
-# CONNECTION_TYPE=""
-# INTERFACE=""
 SSID=""
 PASSWORD=""
 
@@ -31,9 +36,6 @@ done
 
 NAME="tb3"
 VERSION="$(git describe --tags --always)"
-
-# rm -f *-image-*.img.xz
-# rm -f *-image-*.img
 
 if [ "$ADD_CONNECTION" = "true" ]; then
   echo "Adding network connection..."
@@ -96,8 +98,3 @@ sudo podman run --rm --privileged \
     -var "SSID=${SSID}"\
     -var "PASSWORD=${PASSWORD}"\
     packer_ubuntu_server_2204.json
-
-
-    # -var "CONNECTION_NAME=${CONNECTION_NAME}" \
-    # -var "CONNECTION_TYPE=${CONNECTION_TYPE}" \
-    # -var "INTERFACE=${INTERFACE}" \
