@@ -42,14 +42,22 @@ if [ "$ADD_CONNECTION" = "true" ]; then
   read -r -s -p "Password (Leave blank if N/A): " PASSWORD
 fi
 
+OPENCR_MODEL=${MODEL}
+
+if [ "$MODEL" = "waffle" ]; then
+  TURTLEBOT3_MODEL=${MODEL}_pi
+else
+  TURTLEBOT3_MODEL=${MODEL}
+fi
+
 echo "
 Configuration:
 --------------
 NAME: $NAME
 VERSION: $VERSION
 SKIP_COMPRESSION: $SKIP_COMPRESSION
-OPENCR_MODEL: $MODEL
-TURTLEBOT3_MODEL: ${MODEL}_pi
+OPENCR_MODEL: $OPENCR_MODEL
+TURTLEBOT3_MODEL: $TURTLEBOT3_MODEL
 ADD_CONNECTION: $ADD_CONNECTION
 SSID: $SSID
 PASSWORD: ${PASSWORD//?/*}
@@ -82,8 +90,8 @@ sudo podman run --rm --privileged \
     -var "NAME=${NAME}" \
     -var "VERSION=${VERSION}" \
     -var "SKIP_COMPRESSION=${SKIP_COMPRESSION}" \
-    -var "OPENCR_MODEL=${MODEL}" \
-    -var "TURTLEBOT3_MODEL=${MODEL}_pi" \
+    -var "OPENCR_MODEL=${OPENCR_MODEL}" \
+    -var "TURTLEBOT3_MODEL=${TURTLEBOT3_MODEL}" \
     -var "ADD_CONNECTION=${ADD_CONNECTION}" \
     -var "SSID=${SSID}"\
     -var "PASSWORD=${PASSWORD}"\
