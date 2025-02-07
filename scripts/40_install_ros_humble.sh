@@ -5,7 +5,7 @@ echo -e "\e[1;32mInstalling ROS Humble\e[0m"
 
 locale  # check for UTF-8
 
-apt-get -y update && apt-get -y install 
+apt-get -y update && apt-get -y install
 locale-gen en_US en_US.UTF-8
 update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 export LANG=en_US.UTF-8
@@ -27,3 +27,4 @@ apt-get -y install ros-humble-desktop
 apt-get -y install ros-dev-tools
 
 echo "source /opt/ros/humble/setup.bash" >> /etc/profile.d/90-turtlebot-ros-profile.sh
+chmod 755 /etc/profile.d/90-turtlebot-ros-profile.sh
