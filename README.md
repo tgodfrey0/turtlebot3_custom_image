@@ -23,6 +23,8 @@ This will output a `.img` with the name `tb3-image-<GIT TAG>.img`. The output im
 - `waffle`
 - `burger`
 
+### Flashing
+
 The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
 ```bash
@@ -32,6 +34,14 @@ sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> status=progress bs=32M
 **MAKE SURE YOU SELECT THE CORRECT DRIVE -- the above command will wipe the drive!**
 
 The address of the MicroSD card can be found with `sudo fdisk -l`.
+
+If you wish to use something a bit more friendly,such as [Balena Etcher](https://etcher.balena.io/).
+
+### After Flashing
+
+The image is 8GB to speed up creation and flashing. After, the image has been flashed to the MicroSD card, the partition size can be expanded to fill the rest of the drive.
+
+This can be done using something like [GParted](https://gparted.org/).
 
 ### Connecting to WiFi
 
