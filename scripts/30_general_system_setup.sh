@@ -7,9 +7,9 @@ systemctl mask systemd-networkd-wait-online.service
 systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 systemctl enable ssh
 
-touch /root/.setup_firewall
+touch /home/robot/.setup_firewall
 
-chmod +x /root/setup_scripts/setup_firewall.sh
+chmod +x /home/robot/setup_scripts/setup_firewall.sh
 
 systemctl enable firewall_setup.service
 

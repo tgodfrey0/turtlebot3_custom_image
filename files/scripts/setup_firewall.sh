@@ -1,9 +1,9 @@
 #!/bin/bash
 set -eux -o pipefail
 
-if [[ -f /root/.setup_firewall ]]; then
+if [[ -f /home/robot/.setup_firewall ]]; then
   ufw allow ssh
-  rm /root/.setup_firewall
+  rm /home/robot/.setup_firewall
 fi
 
 

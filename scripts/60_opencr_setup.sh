@@ -13,8 +13,8 @@ rm -rf ./opencr_update.tar.bz2
 wget https://github.com/ROBOTIS-GIT/OpenCR-Binaries/raw/master/turtlebot3/ROS2/latest/opencr_update.tar.bz2
 tar -xvf ./opencr_update.tar.bz2
 
-touch /root/.setup_opencr
+touch /home/robot/.setup_opencr
 
-chmod +x /root/setup_scripts/setup_opencr.sh
+chmod +x /home/robot/setup_scripts/setup_opencr.sh
 
 systemctl enable opencr_setup.service

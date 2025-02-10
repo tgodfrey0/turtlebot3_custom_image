@@ -3,7 +3,7 @@ Description=Camera setup service
 After=network.target
 
 [Service]
-ExecStart=/root/setup_scripts/setup_camera.sh
+ExecStart=/home/robot/setup_scripts/setup_camera.sh
 Type=oneshot
 User=root
 

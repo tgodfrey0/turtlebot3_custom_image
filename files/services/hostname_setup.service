@@ -3,7 +3,7 @@ Description=Network setting service
 Before=network.target
 
 [Service]
-ExecStart=/root/setup_scripts/setup_network.sh
+ExecStart=/home/robot/setup_scripts/setup_network.sh
 Type=oneshot
 User=root
 

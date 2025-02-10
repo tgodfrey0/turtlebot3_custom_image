@@ -2,7 +2,7 @@
 Description=OpenCR setup service
 
 [Service]
-ExecStart=/root/setup_scripts/setup_opencr.sh
+ExecStart=/home/robot/setup_scripts/setup_opencr.sh
 Type=oneshot
 User=root
 

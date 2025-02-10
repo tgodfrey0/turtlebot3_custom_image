@@ -66,12 +66,12 @@ When creating the image:
 When booting for the first time:
 
 - The hostname is changed to `turtlebot_XX_XX_XX` (where `XX_XX_XX` are the last three octets of the robot's MAC address)
-  - This only runs if the file `/root/.setup_hostname` is present. If you play with the hostname and want to reset it touch that file and reboot and the service will run.
+  - This only runs if the file `/home/robot/.setup_hostname` is present. If you play with the hostname and want to reset it touch that file and reboot and the service will run.
 - The OpenCR board is configured
-  - This runs at boot so the RPi should be connected to the OpenCR board during boot. This service also only runs if the file `/root/.setup_opencr` is present so if the board needs to be reconfigured just recreate that file and reboot.
+  - This runs at boot so the RPi should be connected to the OpenCR board during boot. This service also only runs if the file `/home/robot/.setup_opencr` is present so if the board needs to be reconfigured just recreate that file and reboot.
 - A firewall exception is added for SSH
-  - This only runs if the file `/root/.setup_firewall` is present.
+  - This only runs if the file `/home/robot/.setup_firewall` is present.
 - The Pi Camera is enabled in the `/boot/firmware/` configuration file
-  - This only runs if the file `/root/.setup_camera` is present.
+  - This only runs if the file `/home/robot/.setup_camera` is present.
 
 ### **_After booting the first time, the system must be restarted for several changes to take effect_**

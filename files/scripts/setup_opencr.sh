@@ -1,11 +1,11 @@
 #!/bin/bash
 set -eux -o pipefail
 
-if [[ -f /root/.setup_opencr ]]; then
+if [[ -f /home/robot/.setup_opencr ]]; then
   export OPENCR_PORT=/dev/ttyACM0
 
-  cd /root/opencr_update
+  cd /home/robot/opencr_update
   ./update.sh $OPENCR_PORT $OPENCR_MODEL.opencr
 
-  rm /root/.setup_opencr
+  rm /home/robot/.setup_opencr
 fi

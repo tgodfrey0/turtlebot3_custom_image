@@ -8,18 +8,18 @@ apt-get -y install ros-humble-hls-lfcd-lds-driver
 apt-get -y install ros-humble-turtlebot3-msgs
 apt-get -y install ros-humble-dynamixel-sdk
 apt-get -y install libudev-dev
-mkdir -p /root/turtlebot3_ws/src && cd /root/turtlebot3_ws/src
+mkdir -p /home/robot/turtlebot3_ws/src && cd /home/robot/turtlebot3_ws/src
 git clone -b humble-devel https://github.com/ROBOTIS-GIT/turtlebot3.git
 git clone -b ros2-devel https://github.com/ROBOTIS-GIT/ld08_driver.git
-cd /root/turtlebot3_ws/src/turtlebot3
+cd /home/robot/turtlebot3_ws/src/turtlebot3
 rm -r turtlebot3_cartographer turtlebot3_navigation2
-cd /root/turtlebot3_ws/src/
+cd /home/robot/turtlebot3_ws/src/
 git clone https://github.com/tgodfrey0/turtlebot3_mrs_launcher.git
-cd /root/turtlebot3_ws/
+cd /home/robot/turtlebot3_ws/
 echo 'source /opt/ros/humble/setup.bash' | sudo tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 source /etc/profile.d/90-turtlebot-ros-profile.sh
 colcon build --symlink-install --parallel-workers 1
-echo 'source /root/turtlebot3_ws/install/setup.bash' | sudo tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
+echo 'source /home/robot/turtlebot3_ws/install/setup.bash' | sudo tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 source /etc/profile.d/90-turtlebot-ros-profile.sh
 
 cp "$(ros2 pkg prefix turtlebot3_bringup)"/share/turtlebot3_bringup/script/99-turtlebot3-cdc.rules /etc/udev/rules.d/
@@ -37,4 +37,4 @@ echo 'alias mrs_bringup="ros2 launch turtlebot3_mrs_launcher turtlebot3_mrs_brin
 
 source /etc/profile.d/90-turtlebot-ros-profile.sh
 
-chmod 755 /root/turtlebot3_ws/install/*
+chmod 755 /home/robot/turtlebot3_ws/install/*
