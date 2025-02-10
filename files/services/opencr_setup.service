@@ -3,10 +3,8 @@ Description=OpenCR setup service
 
 [Service]
 ExecStart=/root/setup_scripts/setup_opencr.sh
-ExecReload=/root/setup_scripts/setup_opencr.sh
-Restart=on-failure
 Type=oneshot
 User=root
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

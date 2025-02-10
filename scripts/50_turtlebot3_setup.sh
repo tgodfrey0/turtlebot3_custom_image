@@ -30,8 +30,11 @@ udevadm trigger
 echo '# export ROS_DOMAIN_ID=0'
 echo 'export LDS_MODEL=LDS-02'
 echo "export TURTLEBOT3_MODEL=$TURTLEBOT3_MODEL"
+echo "export OPENCR_MODEL=$OPENCR_MODEL"
 echo 'alias bringup="ros2 launch turtlebot3_bringup robot.launch.py"'
 echo 'alias mrs_bringup="ros2 launch turtlebot3_mrs_launcher turtlebot3_mrs_bringup.launch.py"'
 } | sudo tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 
 source /etc/profile.d/90-turtlebot-ros-profile.sh
+
+chmod 755 /root/turtlebot3_ws/install/*

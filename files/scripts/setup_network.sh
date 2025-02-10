@@ -9,13 +9,13 @@ if [[ -f /root/.setup_network ]]; then
     wifis:
       wlan0:
         access-points:
-          "$SSID":
-            password: "$PASSWORD"
+          "$NETWORK_SSID":
+            password: "$NETWORK_PASSWORD"
         dhcp4: true
 EOF
 
   # Merge the new configuration with the existing one
   sudo cp /etc/netplan/50-cloud-init.yaml /etc/netplan/50-cloud-init.yaml.bak
-  sudo sed -i '/wifis:/,/^[^ ]/!b; /^[^ ]/i\    wlan0:\n      access-points:\n        "'$SSID'":\n          password: "'$PASSWORD'"\n      dhcp4: true' /etc/netplan/50-cloud-init.yaml
+  sudo sed -i '/wifis:/,/^[^ ]/!b; /^[^ ]/i\    wlan0:\n      access-points:\n        "'$NETWORK_SSID'":\n          password: "'$NETWORK_PASSWORD'"\n      dhcp4: true' /etc/netplan/50-cloud-init.yaml
 
 fi
