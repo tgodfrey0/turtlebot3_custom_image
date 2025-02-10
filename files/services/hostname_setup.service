@@ -1,9 +1,9 @@
 [Unit]
-Description=Network setting service
+Description=Hostname setting service
 Before=network.target
 
 [Service]
-ExecStart=/home/robot/setup_scripts/setup_network.sh
+ExecStart=/home/robot/setup_scripts/setup_hostname.sh
 Type=oneshot
 User=root
 

@@ -2,7 +2,14 @@
 set -eux -o pipefail
 
 # Delete the default Ubuntu user
-userdel -r ubuntu
+userdel -r ubuntu || echo "No default Ubuntu user"
+
+# Create missing groups if they don't exist
+for group in gpio ftp ssh; do
+    if ! getent group "$group" > /dev/null; then
+        groupadd "$group"
+    fi
+done
 
 # Create a new user with the username 'robot'
 useradd \

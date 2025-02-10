@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eux -o pipefail
 
+source /etc/profile.d/91-net-vars-profile.sh
+
 if [[ -f /home/robot/.setup_network ]]; then
   echo -e "\e[1;32mAdding network connection for $NETWORK_SSID\e[0m"
   cat << EOF > /tmp/wifi_config.yaml
