@@ -1,0 +1,10 @@
+[Unit]
+Description=Turtlebot3 Bringup service
+
+[Service]
+ExecStart=/home/robot/setup_scripts/bringup.sh
+Type=oneshot
+User=root
+
+[Install]
+WantedBy=multi-user.target

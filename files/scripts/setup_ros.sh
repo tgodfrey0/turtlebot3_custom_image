@@ -10,5 +10,3 @@ if [[ -f /home/robot/.setup_ros ]]; then
 
   rm /home/robot/.setup_ros
 fi
-
-ros2 launch turtlebot3_bringup robot.launch.py
