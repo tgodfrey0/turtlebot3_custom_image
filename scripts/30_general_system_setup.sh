@@ -17,3 +17,5 @@ systemctl enable firewall_setup.service
 echo "export NETWORK_SSID=$SSID" | sudo tee -a /etc/profile.d/91-net-vars-profile.sh > /dev/null
 echo "export NETWORK_PASSWORD=$PASSWORD" | sudo tee -a /etc/profile.d/91-net-vars-profile.sh > /dev/null
 chmod 755 /etc/profile.d/91-net-vars-profile.sh
+
+localectl set-keymap gb

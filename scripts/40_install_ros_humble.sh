@@ -3,14 +3,11 @@ set -eux -o pipefail
 
 echo -e "\e[1;32mInstalling ROS Humble\e[0m"
 
-locale  # check for UTF-8
-
 apt-get -y update && apt-get -y install
-locale-gen en_US en_US.UTF-8
-update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-export LANG=en_US.UTF-8
+locale-gen en_GB en_GB.UTF-8
+update-locale LC_ALL=en_GB.UTF-8 LANG=en_GB.UTF-8
+export LANG=en_GB.UTF-8
 
-locale  # verify settings
 
 apt-get -y install software-properties-common
 add-apt-repository universe

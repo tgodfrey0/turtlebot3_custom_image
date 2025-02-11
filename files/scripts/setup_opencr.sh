@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eux -o pipefail
+set -ex -o pipefail
 
 source /etc/profile.d/90-turtlebot-ros-profile.sh
 
