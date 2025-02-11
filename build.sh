@@ -78,7 +78,8 @@ echo "Proceeding with the build process..."
 
 FILE="./build/$NAME-$TURTLEBOT3_MODEL-image-$VERSION.img*"
 if [[ -f "$FILE" ]]; then
-  rm "$FILE"
+  echo "Error: File '$FILE' already exists." >&2
+  exit 1
 fi
 
 podman pull mkaczanowski/packer-builder-arm:latest
