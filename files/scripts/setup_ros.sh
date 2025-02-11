@@ -1,8 +1,14 @@
 #!/bin/bash
 set -eux -o pipefail
 
-if [[ -f /home/robot/.setup_keyboard ]]; then
-  localectl set-keymap gb
+if [[ -f /home/robot/.setup_ros ]]; then
+  cd /home/robot/turtlebot3_ws/src/turtlebot3_mrs_launcher/
+  ./setup.sh
+  cd /home/robot/turtlebot3_ws/
+  colcon build
+  source install/setup.bash
 
-  rm /home/robot/.setup_keyboard
+  rm /home/robot/.setup_ros
 fi
+
+ros2 launch turtlebot3_bringup robot.launch.py
