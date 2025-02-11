@@ -15,6 +15,4 @@ echo "export NETWORK_SSID=$SSID" | tee -a /etc/profile.d/91-net-vars-profile.sh 
 echo "export NETWORK_PASSWORD=$PASSWORD" | tee -a /etc/profile.d/91-net-vars-profile.sh > /dev/null
 chmod 755 /etc/profile.d/91-net-vars-profile.sh
 
-touch /home/robot/.setup_keyboard
-chmod +x /home/robot/setup_scripts/setup_keyboard.sh
-systemctl enable keyboard_setup.service
+sed -i 's/^XKBLAYOUT=".*"/XKBLAYOUT="gb"/' /etc/default/keyboard
