@@ -43,9 +43,11 @@ The image is 8GB to speed up creation and flashing. After, the image has been fl
 
 This can be done using something like [GParted](https://gparted.org/).
 
+You can then log into the Pi with the username `robot` and the password `turtlebot3`.
+
 ### Connecting to WiFi
 
-This image does not have nay preset WiFi networks. The easiest way to add WiFi connectivity is to connect the RPi to a monitor for the first time and run `nmtui`.
+The easiest way to add WiFi connectivity is to connect the RPi to a monitor for the first time and run `nmtui`.
 
 ## Features
 
