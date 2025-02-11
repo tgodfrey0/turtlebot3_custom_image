@@ -76,4 +76,6 @@ When booting for the first time:
 - The Pi Camera is enabled in the `/boot/firmware/` configuration file
   - This only runs if the file `/home/robot/.setup_camera` is present.
 
+If you want to automatically launch the TurtleBot3 bringup package, enable the `bringup.service` service.
+
 ### **_After booting the first time, the system must be restarted for several changes to take effect_**
