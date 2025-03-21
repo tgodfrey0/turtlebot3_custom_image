@@ -104,7 +104,7 @@
       "type": "shell-local",
       "inline": [
         "if [ \"{{user `SKIP_COMPRESSION`}}\" != \"true\" ]; then",
-        "xz -v -T0 \"{{user `NAME`}}-image-{{user `VERSION`}}.img\"",
+        "xz -v -T0 \"{{user `NAME`}}-{{user `OPENCR_MODEL`}}-image-{{user `VERSION`}}.img\"",
         "fi"
       ]
     }
