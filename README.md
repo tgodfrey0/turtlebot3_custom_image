@@ -16,7 +16,7 @@ Creating the image is simple.
 ./build.sh <model>
 ```
 
-This will output a `.img` with the name `tb3-image-<GIT TAG>.img`. The output image is automatically compressed once created. To prevent this run `./build.sh nocompress`.
+This will output a `.img` with the name `tb3-<MODEL>-image-<GIT TAG>.img`. The output image is automatically compressed once created. To prevent this, run `./build.sh nocompress`.
 
 `<model>` sets the type of TurtleBot3 for which you want to build the image. The options are:
 
@@ -28,14 +28,20 @@ This will output a `.img` with the name `tb3-image-<GIT TAG>.img`. The output im
 The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
 ```bash
-sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> status=progress bs=32M
+sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> bs=4M status=progress
 ```
 
-**MAKE SURE YOU SELECT THE CORRECT DRIVE -- the above command will wipe the drive!**
+If the image has been compressed, it can still be flashed to the MicroSD card.
+
+```bash
+xz -dc <CUSTOM_IMAGE>.img.xz | sudo dd of=/dev/<RPI MicroSD> bs=4M status=progress
+```
+
+**MAKE SURE YOU SELECT THE CORRECT DRIVE -- the above commands will wipe the drive!**
 
 The address of the MicroSD card can be found with `sudo fdisk -l`.
 
-If you wish to use something a bit more friendly,such as [Balena Etcher](https://etcher.balena.io/).
+You may wish to use something a bit more friendly than `dd`, such as [Balena Etcher](https://etcher.balena.io/).
 
 ### After Flashing
 
