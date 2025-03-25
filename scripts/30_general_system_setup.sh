@@ -8,7 +8,6 @@ systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 systemctl enable ssh
 
 sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication no/' /etc/ssh/sshd_config
 
 touch /home/robot/.setup_firewall
 chmod +x /home/robot/setup_scripts/setup_firewall.sh
