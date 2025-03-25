@@ -28,13 +28,13 @@ This will output a `.img` with the name `tb3-<MODEL>-image-<GIT TAG>.img`. The o
 The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
 
 ```bash
-sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> bs=4M status=progress
+sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> status=progress
 ```
 
 If the image has been compressed, it can still be flashed to the MicroSD card.
 
 ```bash
-xz -dc <CUSTOM_IMAGE>.img.xz | sudo dd of=/dev/<RPI MicroSD> bs=4M status=progress
+xz -dc <CUSTOM_IMAGE>.img.xz | sudo dd of=/dev/<RPI MicroSD> status=progress
 ```
 
 **MAKE SURE YOU SELECT THE CORRECT DRIVE -- the above commands will wipe the drive!**
@@ -45,7 +45,7 @@ You may wish to use something a bit more friendly than `dd`, such as [Balena Etc
 
 ### After Flashing
 
-The image is 8GB to speed up creation and flashing. After, the image has been flashed to the MicroSD card, the partition size can be expanded to fill the rest of the drive.
+The image is 10GB to speed up creation and flashing. After, the image has been flashed to the MicroSD card, the partition size can be expanded to fill the rest of the drive.
 
 This can be done using something like [GParted](https://gparted.org/).
 
