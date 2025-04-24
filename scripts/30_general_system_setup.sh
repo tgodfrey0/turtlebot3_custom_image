@@ -9,6 +9,9 @@ systemctl enable ssh
 
 sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
+echo "Match User robot" | tee /etc/ssh/sshd_config.d/10-password-login-for-robot.conf > /dev/null
+echo "    PasswordAuthentication yes" | tee -a /etc/ssh/sshd_config.d/10-password-login-for-robot.conf > /dev/null
+
 touch /home/robot/.setup_firewall
 chmod +x /home/robot/setup_scripts/setup_firewall.sh
 systemctl enable firewall_setup.service

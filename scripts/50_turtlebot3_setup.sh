@@ -3,11 +3,7 @@ set -ex -o pipefail
 
 echo -e "\e[1;32mTurtleBot3 setup\e[0m"
 
-apt-get -y install python3-argcomplete python3-colcon-common-extensions libboost-system-dev build-essential
-apt-get -y install ros-humble-hls-lfcd-lds-driver
-apt-get -y install ros-humble-turtlebot3-msgs
-apt-get -y install ros-humble-dynamixel-sdk
-apt-get -y install libudev-dev
+apt-get -y install python3-argcomplete python3-colcon-common-extensions libboost-system-dev build-essential ros-humble-hls-lfcd-lds-driver ros-humble-turtlebot3-msgs ros-humble-dynamixel-sdk libudev-dev
 mkdir -p /home/robot/turtlebot3_ws/src && cd /home/robot/turtlebot3_ws/src
 git clone -b humble-devel https://github.com/ROBOTIS-GIT/turtlebot3.git
 git clone -b ros2-devel https://github.com/ROBOTIS-GIT/ld08_driver.git
