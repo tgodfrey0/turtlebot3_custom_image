@@ -82,3 +82,5 @@ output-*/
 *.xz
 .packer_cache/
 build/
+__pycache__/
+.cache/

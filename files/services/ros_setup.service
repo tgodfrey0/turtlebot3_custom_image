@@ -2,6 +2,7 @@
 Description=ROS setup service
 
 [Service]
+Environment=USERNAME=robot
 ExecStart=/home/robot/setup_scripts/setup_ros.sh
 Type=oneshot
 User=root

@@ -6,21 +6,29 @@
     "OPENCR_MODEL": "",
     "TURTLEBOT3_MODEL": "",
     "ADD_CONNECTION": "false",
-    "SSID": ""
+    "NETWORKS": "[]",
+    "USERNAME": "robot",
+    "USER_PASSWORD": "turtlebot3",
+    "LIDAR": "LDS-02",
+    "BUILD_SUBDIR": "",
+    "SOURCE_IMAGE_PATH": "",
+    "IMAGE_CHECKSUM": "",
+    "IMAGE_SIZE": "10G",
+    "BOOT_SIZE": "256M"
   },
   "builders": [
     {
       "type": "arm",
       "file_urls": [
-        "https://cdimage.ubuntu.com/ubuntu/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
+        "/build/{{user `SOURCE_IMAGE_PATH`}}"
       ],
-      "file_checksum_url": "https://cdimage.ubuntu.com/ubuntu/releases/22.04.5/release/SHA256SUMS",
+      "file_checksum": "{{user `IMAGE_CHECKSUM`}}",
       "file_checksum_type": "sha256",
       "file_target_extension": "xz",
       "file_unarchive_cmd": ["xz", "--decompress", "$ARCHIVE_PATH"],
       "image_build_method": "resize",
-      "image_size": "10G",
-      "image_path": "build/{{user `NAME`}}-{{user `OPENCR_MODEL`}}-image-{{user `VERSION`}}.img",
+      "image_size": "{{user `IMAGE_SIZE`}}",
+      "image_path": "build/{{user `BUILD_SUBDIR`}}/{{user `NAME`}}-{{user `OPENCR_MODEL`}}-image-{{user `VERSION`}}.img",
       "image_type": "dos",
       "image_partitions": [
         {
@@ -28,7 +36,7 @@
           "type": "c",
           "start_sector": "8192",
           "filesystem": "vfat",
-          "size": "256M",
+          "size": "{{user `BOOT_SIZE`}}",
           "mountpoint": "/boot"
         },
         {
@@ -56,19 +64,21 @@
         "OPENCR_MODEL={{user `OPENCR_MODEL`}}",
         "TURTLEBOT3_MODEL={{user `TURTLEBOT3_MODEL`}}",
         "ADD_CONNECTION={{user `ADD_CONNECTION`}}",
-        "SSID={{user `SSID`}}",
-        "PASSWORD={{user `PASSWORD`}}"
+        "NETWORKS={{user `NETWORKS`}}",
+        "USERNAME={{user `USERNAME`}}",
+        "USER_PASSWORD={{user `USER_PASSWORD`}}",
+        "LIDAR={{user `LIDAR`}}"
       ],
       "scripts": ["scripts/00_setup_user.sh"]
     },
     {
       "type": "shell",
-      "inline": ["mkdir /home/robot/setup_scripts/"]
+      "inline": ["mkdir -p /home/{{user `USERNAME`}}/setup_scripts/"]
     },
     {
       "type": "file",
       "source": "files/scripts/",
-      "destination": "/home/robot/setup_scripts"
+      "destination": "/home/{{user `USERNAME`}}/setup_scripts"
     },
     {
       "type": "file",
@@ -78,13 +88,26 @@
     {
       "type": "shell",
       "environment_vars": [
+        "USERNAME={{user `USERNAME`}}"
+      ],
+      "inline": [
+        "find /home/$USERNAME/setup_scripts /etc/systemd/system -type f -exec sed -i \"s|/home/robot|/home/$USERNAME|g\" {} +",
+        "find /home/$USERNAME/setup_scripts /etc/systemd/system -type f -exec sed -i \"s|USERNAME=robot|USERNAME=$USERNAME|g\" {} +",
+        "find /home/$USERNAME/setup_scripts -name '*.sh' -exec chmod +x {} +"
+      ]
+    },
+    {
+      "type": "shell",
+      "environment_vars": [
         "DEBIAN_FRONTEND=noninteractive",
         "NEEDRESTART_MODE=a",
         "OPENCR_MODEL={{user `OPENCR_MODEL`}}",
         "TURTLEBOT3_MODEL={{user `TURTLEBOT3_MODEL`}}",
         "ADD_CONNECTION={{user `ADD_CONNECTION`}}",
-        "SSID={{user `SSID`}}",
-        "PASSWORD={{user `PASSWORD`}}"
+        "NETWORKS={{user `NETWORKS`}}",
+        "USERNAME={{user `USERNAME`}}",
+        "USER_PASSWORD={{user `USER_PASSWORD`}}",
+        "LIDAR={{user `LIDAR`}}"
       ],
       "scripts": [
         "scripts/01_set_dns.sh",
@@ -104,7 +127,7 @@
       "type": "shell-local",
       "inline": [
         "if [ \"{{user `SKIP_COMPRESSION`}}\" != \"true\" ]; then",
-        "xz -v -T0 \"build/{{user `NAME`}}-{{user `OPENCR_MODEL`}}-image-{{user `VERSION`}}.img\"",
+        "xz -f -v -T0 \"build/{{user `BUILD_SUBDIR`}}/{{user `NAME`}}-{{user `OPENCR_MODEL`}}-image-{{user `VERSION`}}.img\"",
         "fi"
       ]
     }

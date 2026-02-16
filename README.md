@@ -6,22 +6,92 @@ This repo provides a way to build a TurtleBot3 image with the necessary setup al
 
 ## Prerequisites
 
-This package uses Podman to run a container, so install Podman first.
+- Python 3.11+
+- Podman (for running the Packer container)
+
+### Python Dependencies
+
+Install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Usage
 
-Creating the image is simple.
+The build system uses TOML configuration files. Configuration files are stored in the `configs/` directory.
+
+### Quick Start
+
+1. Copy an example config and customise it:
 
 ```bash
-./build.sh <model>
+cp configs/example.toml configs/my_robot.toml
+# Edit configs/my_robot.toml with your settings
 ```
 
-This will output a `.img` with the name `tb3-<MODEL>-image-<GIT TAG>.img`. The output image is automatically compressed once created. To prevent this, run `./build.sh nocompress`.
+2. Run the build:
 
-`<model>` sets the type of TurtleBot3 for which you want to build the image. The options are:
+```bash
+python build.py --config configs/my_robot.toml
+```
 
-- `waffle`
-- `burger`
+### Configuration
+
+The configuration file controls all build options:
+
+- **Model**: Set `model.type` to `waffle` or `burger`
+- **Network**: Optional `[[network]]` sections - use TOML array syntax (double brackets) to configure one or more WiFi networks
+- **Compression**: Set `build.skip_compression` to `true` to skip `.xz` compression
+- **Version**: Auto-detected from git tags, or set `image.version` manually
+
+See `configs/example.toml` for a complete example with commented networks, and `configs/waffle_with_network.toml` for an example with multiple networks configured.
+
+#### Multiple WiFi Networks
+
+You can configure multiple WiFi networks using TOML array syntax:
+
+```toml
+[[network]]
+ssid = "Network1"
+password = "password1"
+
+[[network]]
+ssid = "Network2"
+password = "password2"
+
+[[network]]
+ssid = "OpenNetwork"
+# Leave password empty for open networks
+```
+
+All configured networks will be added to the netplan configuration and the robot will attempt to connect to them in order of priority.
+
+### Build Options
+
+```bash
+# Basic build
+python build.py --config configs/my_config.toml
+
+# Dry run (validate config without building)
+python build.py --config configs/my_config.toml --dry-run
+
+# Build without confirmation prompt
+python build.py --config configs/my_config.toml --yes
+
+# Verbose output
+python build.py --config configs/my_config.toml --verbose
+
+# Custom Packer file
+python build.py --config configs/my_config.toml --packer-file my_packer.json
+```
+
+### Output
+
+The build outputs a `.img` file (and `.img.xz` if compression is enabled) with the name:
+`{name}-{model}-image-{version}.img`
+
+For example: `tb3-waffle_pi-image-v1.2.3.img`
 
 ### Flashing
 
@@ -51,10 +121,6 @@ This can be done using something like [GParted](https://gparted.org/).
 
 You can then log into the Pi with the username `robot` and the password `turtlebot3`.
 
-### Connecting to WiFi
-
-The easiest way to add WiFi connectivity is to connect the RPi to a monitor for the first time and run `nmtui`.
-
 ## Features
 
 This script completes several tasks automatically.
@@ -69,7 +135,8 @@ When creating the image:
 - Install the OpenCR packages
 - Edit the firmware config to allow the Pi Camera to be used
 - Enables SSH access
-- ~~Configures network details to allow for WiFi connection on boot (if the user has given the argument `addconnection`)~~
+- Configures network details to allow for WiFi connection on boot (if the `[[network]]` sections are included in the config)
+- Supports multiple WiFi networks for better connectivity options
 
 When booting for the first time:
 

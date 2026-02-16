@@ -1,0 +1,37 @@
+# TurtleBot3 Image Build Configuration
+# Example with multiple network connections enabled
+
+[image]
+name = "tb3_waffle"
+version = "1.0.1"
+
+[model]
+type = "waffle"
+
+[build]
+skip_compression = false
+
+[[network]]
+ssid = "SOTON-IoT"
+password = "K0E8iqsyTKHQ"
+
+[[network]]
+ssid = "Robot_Swarm_AP"
+password = "password"
+
+[user]
+username = "tb"
+password = "password1"
+
+[lidar]
+# LIDAR model to use (LDS-01, LDS-02, or LDS-03)
+model = "LDS-02"
+
+[source]
+url = "https://cdimage.ubuntu.com/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
+checksum_url = "https://cdimage.ubuntu.com/releases/22.04.5/release/SHA256SUMS"
+
+[image.size]
+total = "10G"
+boot_partition = "256M"
+

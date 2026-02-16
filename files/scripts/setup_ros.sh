@@ -1,12 +1,14 @@
 #!/bin/bash
 set -eux -o pipefail
 
-if [[ -f /home/robot/.setup_ros ]]; then
-  cd /home/robot/turtlebot3_ws/src/turtlebot3_mrs_launcher/
-  ./setup.sh
-  cd /home/robot/turtlebot3_ws/
-  colcon build
-  source install/setup.bash
+USERNAME="${USERNAME}"
 
-  rm /home/robot/.setup_ros
+if [[ -f /home/${USERNAME}/.setup_ros ]]; then
+  cd /home/${USERNAME}/turtlebot3_ws/
+  colcon build
+  set +u
+  source install/setup.bash
+  set -u
+
+  rm /home/${USERNAME}/.setup_ros
 fi

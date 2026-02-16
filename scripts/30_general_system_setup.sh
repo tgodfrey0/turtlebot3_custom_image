@@ -9,15 +9,13 @@ systemctl enable ssh
 
 sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-echo "Match User robot" | tee /etc/ssh/sshd_config.d/10-password-login-for-robot.conf > /dev/null
-echo "    PasswordAuthentication yes" | tee -a /etc/ssh/sshd_config.d/10-password-login-for-robot.conf > /dev/null
+USERNAME="${USERNAME:-robot}"
 
-touch /home/robot/.setup_firewall
-chmod +x /home/robot/setup_scripts/setup_firewall.sh
+echo "Match User $USERNAME" | tee /etc/ssh/sshd_config.d/10-password-login-for-$USERNAME.conf > /dev/null
+echo "    PasswordAuthentication yes" | tee -a /etc/ssh/sshd_config.d/10-password-login-for-$USERNAME.conf > /dev/null
+
+touch /home/$USERNAME/.setup_firewall
+chmod +x /home/$USERNAME/setup_scripts/setup_firewall.sh
 systemctl enable firewall_setup.service
-
-echo "export NETWORK_SSID=$SSID" | tee -a /etc/profile.d/91-net-vars-profile.sh > /dev/null
-echo "export NETWORK_PASSWORD=$PASSWORD" | tee -a /etc/profile.d/91-net-vars-profile.sh > /dev/null
-chmod 755 /etc/profile.d/91-net-vars-profile.sh
 
 sed -i 's/^XKBLAYOUT=".*"/XKBLAYOUT="gb"/' /etc/default/keyboard
