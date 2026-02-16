@@ -1,0 +1,59 @@
+# TurtleBot3 Image Build Configuration
+# This is an example configuration file.
+# Copy this file and customise it for your build.
+
+[image]
+name = "tb3"
+# Version will be auto-detected from git if not specified
+# version = "1.0.0"
+output_directory = "build"
+
+[model]
+# Model type: "waffle" or "burger"
+type = "burger"
+
+[build]
+# Skip compression of the output image
+skip_compression = false
+
+# Network section is optional.
+# If included, network connections will be added automatically.
+# Remove or comment out the entire [[network]] section to skip network setup.
+# Use TOML array syntax (double brackets) for multiple networks.
+[[network]]
+# First WiFi network configuration
+# ssid = "YourNetworkSSID"
+# password = "YourNetworkPassword"
+
+# [[network]]
+# Second WiFi network configuration (optional)
+# ssid = "YourSecondNetworkSSID"
+# password = "YourSecondNetworkPassword"
+
+# User section is optional.
+# If not specified, defaults to username "robot" and password "turtlebot3"
+[user]
+# username = "robot"
+# password = "turtlebot3"
+
+# LIDAR section is optional.
+# If not specified, defaults to "LDS-02"
+# Valid options: LDS-01, LDS-02, LDS-03
+[lidar]
+# model = "LDS-02"
+
+[source]
+# Ubuntu image source URL
+url = "https://cdimage.ubuntu.com/ubuntu/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
+checksum_url = "https://cdimage.ubuntu.com/ubuntu/releases/22.04.5/release/SHA256SUMS"
+
+[image.size]
+# Target image size (e.g., "10G", "8G", etc.)
+total = "10G"
+boot_partition = "256M"
+
+[advanced]
+# Packer builder Docker image
+packer_builder_image = "mkaczanowski/packer-builder-arm:latest"
+# Enable verbose output
+verbose = false

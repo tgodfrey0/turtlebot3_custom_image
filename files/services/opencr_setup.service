@@ -2,6 +2,7 @@
 Description=OpenCR setup service
 
 [Service]
+Environment=USERNAME=robot
 ExecStart=/home/robot/setup_scripts/setup_opencr.sh
 Type=oneshot
 User=root

@@ -1,13 +1,17 @@
 #!/bin/bash
 set -ex -o pipefail
 
-source /etc/profile.d/90-turtlebot-ros-profile.sh
+USERNAME="${USERNAME}"
 
-if [[ -f /home/robot/.setup_opencr ]]; then
+set +u
+source /etc/profile.d/90-turtlebot-ros-profile.sh
+set -u
+
+if [[ -f /home/${USERNAME}/.setup_opencr ]]; then
   export OPENCR_PORT=/dev/ttyACM0
 
-  cd /home/robot/opencr_update
+  cd /home/${USERNAME}/opencr_update
   ./update.sh $OPENCR_PORT $OPENCR_MODEL.opencr
 
-  rm /home/robot/.setup_opencr
+  rm /home/${USERNAME}/.setup_opencr
 fi

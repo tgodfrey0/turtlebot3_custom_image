@@ -3,6 +3,7 @@ Description=Hostname setting service
 Before=network.target
 
 [Service]
+Environment=USERNAME=robot
 ExecStart=/home/robot/setup_scripts/setup_hostname.sh
 Type=oneshot
 User=root
