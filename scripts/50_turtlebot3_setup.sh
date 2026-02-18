@@ -30,7 +30,7 @@ udevadm control --reload-rules
 udevadm trigger
 
 {
-echo '# export ROS_DOMAIN_ID=0'
+echo "export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}"
 echo "export LDS_MODEL=$LIDAR"
 echo "export TURTLEBOT3_MODEL=$TURTLEBOT3_MODEL"
 echo "export OPENCR_MODEL=$OPENCR_MODEL"
