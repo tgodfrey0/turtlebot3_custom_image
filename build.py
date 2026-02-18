@@ -72,6 +72,9 @@ class BuildConfig:
     # LIDAR settings (optional - defaults to LDS-02)
     lidar: str = "LDS-02"
 
+    # ROS settings (optional - defaults to 0)
+    ros_domain_id: int = 0
+
     # Source image
     source_url: str = "https://cdimage.ubuntu.com/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
     checksum_url: str = "https://cdimage.ubuntu.com/releases/22.04.5/release/SHA256SUMS"
@@ -159,6 +162,11 @@ def load_config(config_path: Path) -> BuildConfig:
         ldr = data["lidar"]
         cfg.lidar = ldr.get("model", cfg.lidar)
 
+    # Parse ros section (optional - defaults to 0)
+    if "ros" in data:
+        ros = data["ros"]
+        cfg.ros_domain_id = ros.get("domain_id", cfg.ros_domain_id)
+
     # Parse source section
     if "source" in data:
         src = data["source"]
@@ -223,6 +231,9 @@ def validate_config(cfg: BuildConfig) -> None:
     if cfg.lidar not in valid_lidars:
         raise BuildError(f"Invalid lidar model: {cfg.lidar}. Must be one of: {', '.join(valid_lidars)}.")
 
+    if not (0 <= cfg.ros_domain_id <= 101):
+        raise BuildError(f"Invalid ROS_DOMAIN_ID: {cfg.ros_domain_id}. Must be between 0 and 101.")
+
 
 def compute_derived_values(cfg: BuildConfig) -> None:
     """Compute derived values from the configuration."""
@@ -286,6 +297,9 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
         "lidar": {
             "model": cfg.lidar
         },
+        "ros": {
+            "domain_id": cfg.ros_domain_id
+        },
         "source": {
             "url": cfg.source_url,
             "checksum_url": cfg.checksum_url
@@ -326,6 +340,7 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
             f.write(f"username = {cfg.username!r}\n")
             f.write(f"user_password = {'***' if cfg.user_password else None!r}\n")
             f.write(f"lidar = {cfg.lidar!r}\n")
+            f.write(f"ros_domain_id = {cfg.ros_domain_id}\n")
             f.write(f"image_size = {cfg.image_size!r}\n")
             f.write(f"boot_size = {cfg.boot_size!r}\n")
             f.write(f"source_url = {cfg.source_url!r}\n")
@@ -356,6 +371,7 @@ NAME: {cfg.name}
 VERSION: {cfg.computed_version}
 MODEL: {cfg.model_type}
 LIDAR: {cfg.lidar}
+ROS_DOMAIN_ID: {cfg.ros_domain_id}
 USERNAME: {cfg.username}
 USER_PASSWORD: {user_password_display}
 SKIP_COMPRESSION: {cfg.skip_compression}
@@ -521,6 +537,7 @@ def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path
         "-var", f"USERNAME={cfg.username}",
         "-var", f"USER_PASSWORD={cfg.user_password}",
         "-var", f"LIDAR={cfg.lidar}",
+        "-var", f"ROS_DOMAIN_ID={cfg.ros_domain_id}",
         "-var", f"BUILD_SUBDIR={build_subdir.name}",
         "-var", f"SOURCE_IMAGE_PATH={source_image_path}",
         "-var", f"IMAGE_CHECKSUM={expected_checksum}",

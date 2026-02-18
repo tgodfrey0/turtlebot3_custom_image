@@ -14,7 +14,8 @@
     "SOURCE_IMAGE_PATH": "",
     "IMAGE_CHECKSUM": "",
     "IMAGE_SIZE": "10G",
-    "BOOT_SIZE": "256M"
+    "BOOT_SIZE": "256M",
+    "ROS_DOMAIN_ID": "0"
   },
   "builders": [
     {
@@ -67,7 +68,8 @@
         "NETWORKS={{user `NETWORKS`}}",
         "USERNAME={{user `USERNAME`}}",
         "USER_PASSWORD={{user `USER_PASSWORD`}}",
-        "LIDAR={{user `LIDAR`}}"
+        "LIDAR={{user `LIDAR`}}",
+        "ROS_DOMAIN_ID={{user `ROS_DOMAIN_ID`}}"
       ],
       "scripts": ["scripts/00_setup_user.sh"]
     },
@@ -107,7 +109,8 @@
         "NETWORKS={{user `NETWORKS`}}",
         "USERNAME={{user `USERNAME`}}",
         "USER_PASSWORD={{user `USER_PASSWORD`}}",
-        "LIDAR={{user `LIDAR`}}"
+        "LIDAR={{user `LIDAR`}}",
+        "ROS_DOMAIN_ID={{user `ROS_DOMAIN_ID`}}"
       ],
       "scripts": [
         "scripts/01_set_dns.sh",

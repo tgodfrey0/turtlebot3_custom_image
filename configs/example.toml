@@ -42,6 +42,12 @@ skip_compression = false
 [lidar]
 # model = "LDS-02"
 
+# ROS section is optional.
+# If not specified, defaults to domain_id = 0
+# Valid range: 0-101
+[ros]
+# domain_id = 0
+
 [source]
 # Ubuntu image source URL
 url = "https://cdimage.ubuntu.com/ubuntu/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
