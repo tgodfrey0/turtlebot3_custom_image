@@ -84,3 +84,7 @@ output-*/
 build/
 __pycache__/
 .cache/
+
+configs/
+configs/*.toml
+!configs/example.toml
