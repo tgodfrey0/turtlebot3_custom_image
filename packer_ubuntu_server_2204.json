@@ -123,6 +123,17 @@
         "scripts/70_setup_camera.sh",
         "scripts/80_add_connection.sh"
       ]
+    },
+    {
+      "type": "shell",
+      "environment_vars": [
+        "USERNAME={{user `USERNAME`}}"
+      ],
+      "inline": [
+        "echo 'Fixing ownership of files in /home/$USERNAME...'",
+        "chown -R $USERNAME:$USERNAME /home/$USERNAME",
+        "echo 'Ownership fixed successfully.'"
+      ]
     }
   ],
   "post-processors": [
