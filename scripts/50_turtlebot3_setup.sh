@@ -15,6 +15,13 @@ git clone -b humble https://github.com/ROBOTIS-GIT/coin_d4_driver
 cd "/home/$USERNAME/turtlebot3_ws/src/turtlebot3"
 rm -r turtlebot3_cartographer turtlebot3_navigation2
 cd "/home/$USERNAME/turtlebot3_ws/"
+{
+  echo "export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}"
+  echo "export LDS_MODEL=$LIDAR"
+  echo "export TURTLEBOT3_MODEL=$TURTLEBOT3_MODEL"
+  echo "export OPENCR_MODEL=$OPENCR_MODEL"
+  echo 'alias bringup="ros2 launch turtlebot3_bringup robot.launch.py"'
+} | tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 echo 'source /opt/ros/humble/setup.bash' | tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 set +u
 source /etc/profile.d/90-turtlebot-ros-profile.sh
@@ -29,13 +36,6 @@ cp "$(ros2 pkg prefix turtlebot3_bringup)"/share/turtlebot3_bringup/script/99-tu
 udevadm control --reload-rules
 udevadm trigger
 
-{
-echo "export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}"
-echo "export LDS_MODEL=$LIDAR"
-echo "export TURTLEBOT3_MODEL=$TURTLEBOT3_MODEL"
-echo "export OPENCR_MODEL=$OPENCR_MODEL"
-echo 'alias bringup="ros2 launch turtlebot3_bringup robot.launch.py"'
-} | tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 
 set +u
 source /etc/profile.d/90-turtlebot-ros-profile.sh
