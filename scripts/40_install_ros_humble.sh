@@ -16,7 +16,7 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-a
 apt-get -y update
 apt-get -y upgrade
 
-apt-get -y install ros-humble-desktop ros-dev-tools
+apt-get -y install ros-humble-desktop ros-dev-tools ros-humble-xacro ros-humble-image-transport-plugins
 
 echo "source /opt/ros/humble/setup.bash" >> /etc/profile.d/90-turtlebot-ros-profile.sh
 chmod 755 /etc/profile.d/90-turtlebot-ros-profile.sh
