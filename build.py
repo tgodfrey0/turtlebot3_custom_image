@@ -493,7 +493,7 @@ def pull_packer_image(cfg: BuildConfig) -> None:
     """Pull the Packer builder Docker image."""
     print(f"Pulling Packer builder image: {cfg.packer_builder_image}")
     process = subprocess.Popen(
-        ["podman", "pull", cfg.packer_builder_image],
+        ["sudo", "podman", "pull", cfg.packer_builder_image],
         preexec_fn=os.setpgrp
     )
     try:
