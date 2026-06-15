@@ -4,18 +4,22 @@ set -ex -o pipefail
 # Use environment variables with defaults
 USERNAME="${USERNAME:-robot}"
 LIDAR="${LIDAR:-LDS-02}"
+ROS_DISTRO="${ROS_DISTRO:-humble}"
 
 echo -e "\e[1;32mTurtleBot3 setup\e[0m"
 
-apt-get -y install python3-argcomplete python3-colcon-common-extensions libboost-system-dev build-essential ros-humble-hls-lfcd-lds-driver ros-humble-turtlebot3-msgs ros-humble-dynamixel-sdk libudev-dev
+_TB3_PKGS="python3-argcomplete python3-colcon-common-extensions libboost-system-dev build-essential ros-${ROS_DISTRO}-hls-lfcd-lds-driver ros-${ROS_DISTRO}-turtlebot3-msgs ros-${ROS_DISTRO}-dynamixel-sdk libudev-dev"
+apt-get --simulate install ${_TB3_PKGS} > /dev/null 2>&1
+apt-get -y install ${_TB3_PKGS}
+unset _TB3_PKGS
 mkdir -p "/home/$USERNAME/turtlebot3_ws/src" && cd "/home/$USERNAME/turtlebot3_ws/src"
-git clone -b humble https://github.com/ROBOTIS-GIT/turtlebot3.git
-git clone -b humble https://github.com/ROBOTIS-GIT/ld08_driver.git
-git clone -b humble https://github.com/ROBOTIS-GIT/coin_d4_driver
+git clone -b ${ROS_DISTRO} https://github.com/ROBOTIS-GIT/turtlebot3.git
+git clone -b ${ROS_DISTRO} https://github.com/ROBOTIS-GIT/ld08_driver.git
+git clone -b ${ROS_DISTRO} https://github.com/ROBOTIS-GIT/coin_d4_driver
 cd "/home/$USERNAME/turtlebot3_ws/src/turtlebot3"
 rm -r turtlebot3_cartographer turtlebot3_navigation2
 cd "/home/$USERNAME/turtlebot3_ws/"
-echo 'source /opt/ros/humble/setup.bash' | tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
+echo "source /opt/ros/${ROS_DISTRO}/setup.bash" | tee -a /etc/profile.d/90-turtlebot-ros-profile.sh > /dev/null
 set +u
 source /etc/profile.d/90-turtlebot-ros-profile.sh
 set -u

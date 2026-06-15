@@ -47,6 +47,23 @@ except ImportError:
     except ImportError:
         pass
 
+ROS_DISTRO_UBUNTU_MAP: dict[str, str] = {
+    "humble": "22.04",
+    "iron": "22.04",
+    "jazzy": "24.04",
+    "rolling": "24.04",
+}
+
+# Full Ubuntu release version for URL construction (includes patch version)
+ROS_DISTRO_UBUNTU_RELEASE_MAP: dict[str, str] = {
+    "humble": "22.04.5",
+    "iron": "22.04.5",
+    "jazzy": "24.04.3",
+    "rolling": "24.04.3",
+}
+
+VALID_ROS_DISTROS = set(ROS_DISTRO_UBUNTU_MAP.keys())
+
 
 @dataclass
 class BuildConfig:
@@ -74,6 +91,7 @@ class BuildConfig:
 
     # ROS settings (optional - defaults to 0)
     ros_domain_id: int = 0
+    ros_distro: str = "humble"
 
     # Source image
     source_url: str = "https://cdimage.ubuntu.com/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
@@ -92,6 +110,10 @@ class BuildConfig:
     opencr_model: str = field(default="", init=False)
     turtlebot3_model: str = field(default="", init=False)
     add_connection: bool = field(default=False, init=False)
+    ubuntu_version: str = field(default="", init=False)
+
+    # Internal tracking (not user-configurable)
+    _source_explicit: bool = field(default=False, init=False)
 
 
 class BuildError(Exception):
@@ -166,9 +188,11 @@ def load_config(config_path: Path) -> BuildConfig:
     if "ros" in data:
         ros = data["ros"]
         cfg.ros_domain_id = ros.get("domain_id", cfg.ros_domain_id)
+        cfg.ros_distro = ros.get("distro", cfg.ros_distro)
 
     # Parse source section
     if "source" in data:
+        cfg._source_explicit = True
         src = data["source"]
         cfg.source_url = src.get("url", cfg.source_url)
         cfg.checksum_url = src.get("checksum_url", cfg.checksum_url)
@@ -234,6 +258,9 @@ def validate_config(cfg: BuildConfig) -> None:
     if not (0 <= cfg.ros_domain_id <= 101):
         raise BuildError(f"Invalid ROS_DOMAIN_ID: {cfg.ros_domain_id}. Must be between 0 and 101.")
 
+    if cfg.ros_distro not in VALID_ROS_DISTROS:
+        raise BuildError(f"Invalid ROS distro: {cfg.ros_distro}. Must be one of: {', '.join(sorted(VALID_ROS_DISTROS))}.")
+
 
 def compute_derived_values(cfg: BuildConfig) -> None:
     """Compute derived values from the configuration."""
@@ -246,6 +273,20 @@ def compute_derived_values(cfg: BuildConfig) -> None:
         cfg.turtlebot3_model = f"{cfg.model_type}_pi"
     else:
         cfg.turtlebot3_model = cfg.model_type
+
+    # Compute Ubuntu version from ROS distro
+    cfg.ubuntu_version = ROS_DISTRO_UBUNTU_MAP.get(cfg.ros_distro, "22.04")
+    ubuntu_release = ROS_DISTRO_UBUNTU_RELEASE_MAP.get(cfg.ros_distro, "22.04.5")
+
+    # Auto-derive source URLs from Ubuntu version if not explicitly set
+    if not cfg._source_explicit:
+        cfg.source_url = (
+            f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/"
+            f"ubuntu-{ubuntu_release}-preinstalled-server-arm64+raspi.img.xz"
+        )
+        cfg.checksum_url = (
+            f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/SHA256SUMS"
+        )
 
 
 def prompt_missing_network_config(cfg: BuildConfig) -> None:
@@ -298,7 +339,8 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
             "model": cfg.lidar
         },
         "ros": {
-            "domain_id": cfg.ros_domain_id
+            "domain_id": cfg.ros_domain_id,
+            "distro": cfg.ros_distro
         },
         "source": {
             "url": cfg.source_url,
@@ -312,7 +354,8 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
             "computed_version": cfg.computed_version,
             "opencr_model": cfg.opencr_model,
             "turtlebot3_model": cfg.turtlebot3_model,
-            "add_connection": cfg.add_connection
+            "add_connection": cfg.add_connection,
+            "ubuntu_version": cfg.ubuntu_version
         }
     }
 
@@ -341,6 +384,8 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
             f.write(f"user_password = {'***' if cfg.user_password else None!r}\n")
             f.write(f"lidar = {cfg.lidar!r}\n")
             f.write(f"ros_domain_id = {cfg.ros_domain_id}\n")
+            f.write(f"ros_distro = {cfg.ros_distro!r}\n")
+            f.write(f"ubuntu_version = {cfg.ubuntu_version!r}\n")
             f.write(f"image_size = {cfg.image_size!r}\n")
             f.write(f"boot_size = {cfg.boot_size!r}\n")
             f.write(f"source_url = {cfg.source_url!r}\n")
@@ -371,7 +416,9 @@ NAME: {cfg.name}
 VERSION: {cfg.computed_version}
 MODEL: {cfg.model_type}
 LIDAR: {cfg.lidar}
+ROS_DISTRO: {cfg.ros_distro}
 ROS_DOMAIN_ID: {cfg.ros_domain_id}
+UBUNTU_VERSION: {cfg.ubuntu_version}
 USERNAME: {cfg.username}
 USER_PASSWORD: {user_password_display}
 SKIP_COMPRESSION: {cfg.skip_compression}
@@ -387,14 +434,24 @@ def confirm_build() -> bool:
     return response.startswith('y')
 
 
-def check_output_file(cfg: BuildConfig) -> None:
-    """Check if output file already exists."""
+def check_output_file(cfg: BuildConfig, auto_yes: bool = False) -> None:
+    """Check if output file already exists and prompt for overwrite."""
     build_subdir = get_build_subdirectory(cfg)
     pattern = f"{cfg.name}-{cfg.turtlebot3_model}-image-{cfg.computed_version}.img*"
     
     if build_subdir.exists():
         for f in build_subdir.glob(pattern):
-            raise BuildError(f"Output file already exists: {f}")
+            if auto_yes:
+                print(f"Output file already exists: {f} - overwriting")
+                f.unlink()
+                return
+            response = input(f"Output file already exists: {f}. Overwrite? (y/n): ").strip().lower()
+            if response.startswith('y'):
+                print("Overwriting...")
+                f.unlink()
+                return
+            else:
+                raise BuildError(f"Output file already exists: {f}")
 
 
 def get_cache_dir() -> Path:
@@ -538,6 +595,7 @@ def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path
         "-var", f"USER_PASSWORD={cfg.user_password}",
         "-var", f"LIDAR={cfg.lidar}",
         "-var", f"ROS_DOMAIN_ID={cfg.ros_domain_id}",
+        "-var", f"ROS_DISTRO={cfg.ros_distro}",
         "-var", f"BUILD_SUBDIR={build_subdir.name}",
         "-var", f"SOURCE_IMAGE_PATH={source_image_path}",
         "-var", f"IMAGE_CHECKSUM={expected_checksum}",
@@ -596,8 +654,8 @@ Config File Structure:
     
     parser.add_argument(
         "--packer-file", "-p",
-        default="packer_ubuntu_server_2204.json",
-        help="Path to Packer configuration file (default: packer_ubuntu_server_2204.json)"
+        default="packer_ubuntu_server.json",
+        help="Path to Packer configuration file (default: packer_ubuntu_server.json)"
     )
     
     parser.add_argument(
@@ -663,7 +721,7 @@ Config File Structure:
         print(f"Original config copied to: {original_config_dest}")
         
         # Check output file doesn't exist
-        check_output_file(cfg)
+        check_output_file(cfg, auto_yes=args.yes)
         
         # Check sudo permissions
         if not check_sudo():

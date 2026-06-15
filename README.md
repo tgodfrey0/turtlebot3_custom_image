@@ -44,6 +44,7 @@ The configuration file controls all build options:
 - **Network**: Optional `[[network]]` sections - use TOML array syntax (double brackets) to configure one or more WiFi networks
 - **Compression**: Set `build.skip_compression` to `true` to skip `.xz` compression
 - **Version**: Auto-detected from git tags, or set `image.version` manually
+- **ROS Distro**: Set `ros.distro` to select the ROS2 distribution. Valid values: `humble` (Ubuntu 22.04), `iron` (22.04), `jazzy` (24.04), `rolling` (24.04). The Ubuntu base image URL is auto-derived from the selected distro, or you can override it in `[source]`.
 
 See `configs/example.toml` for a complete example with commented networks, and `configs/waffle_with_network.toml` for an example with multiple networks configured.
 
@@ -130,7 +131,7 @@ When creating the image:
 - Packages are updated
 - A hostname `systemd` service is created
 - QoL improvements (e.g. disable auto-sleep)
-- Install ROS2 Humble Hawksbill
+- Install ROS2 (configurable: Humble, Jazzy, Rolling, etc.)
 - Install the TurtleBot3 ROS packages
 - Install the OpenCR packages
 - Edit the firmware config to allow the Pi Camera to be used

@@ -15,7 +15,8 @@
     "IMAGE_CHECKSUM": "",
     "IMAGE_SIZE": "10G",
     "BOOT_SIZE": "256M",
-    "ROS_DOMAIN_ID": "0"
+    "ROS_DOMAIN_ID": "0",
+    "ROS_DISTRO": "humble"
   },
   "builders": [
     {
@@ -69,7 +70,8 @@
         "USERNAME={{user `USERNAME`}}",
         "USER_PASSWORD={{user `USER_PASSWORD`}}",
         "LIDAR={{user `LIDAR`}}",
-        "ROS_DOMAIN_ID={{user `ROS_DOMAIN_ID`}}"
+        "ROS_DOMAIN_ID={{user `ROS_DOMAIN_ID`}}",
+        "ROS_DISTRO={{user `ROS_DISTRO`}}"
       ],
       "scripts": ["scripts/00_setup_user.sh"]
     },
@@ -110,14 +112,15 @@
         "USERNAME={{user `USERNAME`}}",
         "USER_PASSWORD={{user `USER_PASSWORD`}}",
         "LIDAR={{user `LIDAR`}}",
-        "ROS_DOMAIN_ID={{user `ROS_DOMAIN_ID`}}"
+        "ROS_DOMAIN_ID={{user `ROS_DOMAIN_ID`}}",
+        "ROS_DISTRO={{user `ROS_DISTRO`}}"
       ],
       "scripts": [
         "scripts/01_set_dns.sh",
         "scripts/10_packages.sh",
         "scripts/20_setup_hostname_service.sh",
         "scripts/30_general_system_setup.sh",
-        "scripts/40_install_ros_humble.sh",
+        "scripts/40_install_ros.sh",
         "scripts/50_turtlebot3_setup.sh",
         "scripts/60_opencr_setup.sh",
         "scripts/70_setup_camera.sh",

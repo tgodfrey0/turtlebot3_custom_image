@@ -43,15 +43,20 @@ skip_compression = false
 # model = "LDS-02"
 
 # ROS section is optional.
-# If not specified, defaults to domain_id = 0
-# Valid range: 0-101
+# If not specified, defaults to domain_id = 0, distro = "humble"
+# Valid range for domain_id: 0-101
+# Valid distro values: humble (22.04), iron (22.04), jazzy (24.04), rolling (24.04)
 [ros]
 # domain_id = 0
+# distro = "humble"
 
 [source]
 # Ubuntu image source URL
-url = "https://cdimage.ubuntu.com/ubuntu/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
-checksum_url = "https://cdimage.ubuntu.com/ubuntu/releases/22.04.5/release/SHA256SUMS"
+# Auto-derived from ros.distro if not specified (uses the latest known Ubuntu
+# patch release for the selected distro, e.g. 22.04.5 for humble, 24.04.4 for jazzy).
+# Uncomment and set explicitly to override auto-detection:
+# url = "https://cdimage.ubuntu.com/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
+# checksum_url = "https://cdimage.ubuntu.com/releases/22.04.5/release/SHA256SUMS"
 
 [image.size]
 # Target image size (e.g., "10G", "8G", etc.)
