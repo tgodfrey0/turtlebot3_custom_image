@@ -78,6 +78,7 @@ class BuildConfig:
 
     # Build options
     skip_compression: bool = False
+    skip_sparse: bool = False
 
     # Network settings (list of networks, empty list means no networks)
     networks: List[NetworkConfig] = field(default_factory=list)
@@ -147,6 +148,7 @@ def load_config(config_path: Path) -> BuildConfig:
     if "build" in data:
         build = data["build"]
         cfg.skip_compression = build.get("skip_compression", cfg.skip_compression)
+        cfg.skip_sparse = build.get("skip_sparse", cfg.skip_sparse)
     
     # Parse network section (optional)
     # Support both single [[network]] and multiple [[network]] entries
@@ -325,7 +327,8 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
             "type": cfg.model_type
         },
         "build": {
-            "skip_compression": cfg.skip_compression
+            "skip_compression": cfg.skip_compression,
+            "skip_sparse": cfg.skip_sparse
         },
         "network": [
             {"ssid": net.ssid, "password": net.password}
@@ -375,6 +378,7 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
             f.write(f"computed_version = {cfg.computed_version!r}\n")
             f.write(f"model_type = {cfg.model_type!r}\n")
             f.write(f"skip_compression = {cfg.skip_compression}\n")
+            f.write(f"skip_sparse = {cfg.skip_sparse}\n")
             f.write(f"add_connection = {cfg.add_connection}\n")
             f.write(f"networks_count = {len(cfg.networks)}\n")
             for i, net in enumerate(cfg.networks):
@@ -422,6 +426,7 @@ UBUNTU_VERSION: {cfg.ubuntu_version}
 USERNAME: {cfg.username}
 USER_PASSWORD: {user_password_display}
 SKIP_COMPRESSION: {cfg.skip_compression}
+SKIP_SPARSE: {cfg.skip_sparse}
 NETWORK: {network_status}{network_info}
 OUTPUT_DIR: {cfg.output_directory}
 BUILD_SUBDIR: {build_subdir}
@@ -587,6 +592,7 @@ def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path
         "-var", f"NAME={cfg.name}",
         "-var", f"VERSION={cfg.computed_version}",
         "-var", f"SKIP_COMPRESSION={str(cfg.skip_compression).lower()}",
+        "-var", f"SKIP_SPARSE={str(cfg.skip_sparse).lower()}",
         "-var", f"OPENCR_MODEL={cfg.opencr_model}",
         "-var", f"TURTLEBOT3_MODEL={cfg.turtlebot3_model}",
         "-var", f"ADD_CONNECTION={str(cfg.add_connection).lower()}",

@@ -8,6 +8,7 @@ This repo provides a way to build a TurtleBot3 image with the necessary setup al
 
 - Python 3.11+
 - Podman (for running the Packer container)
+- bmap-tools (for faster flashing with bmaptool — `sudo apt install bmap-tools`)
 
 ### Python Dependencies
 
@@ -89,20 +90,27 @@ python build.py --config configs/my_config.toml --packer-file my_packer.json
 
 ### Output
 
-The build outputs a `.img` file (and `.img.xz` if compression is enabled) with the name:
-`{name}-{model}-image-{version}.img`
+The build outputs the following files:
+- `<name>-<model>-image-<version>.img.xz` — compressed disk image (if compression enabled)
+- `<name>-<model>-image-<version>.img.xz.bmap` — block map for bmaptool (if sparse enabled)
 
-For example: `tb3-waffle_pi-image-v1.2.3.img`
+If compression is disabled (`skip_compression = true`), the raw `.img` and `.img.bmap` files are produced instead.
+
+For example: `tb3-waffle_pi-image-v1.2.3.img.xz` + `tb3-waffle_pi-image-v1.2.3.img.xz.bmap`
 
 ### Flashing
 
-The `.img` file can then be flashed to the Raspberry Pi 4's MicroSD card.
+The `.bmap` file allows `bmaptool` to skip empty blocks, dramatically speeding up flashing.
+
+**Prerequisite:** `sudo apt install bmap-tools`
+
+**Recommended — bmaptool (fastest):**
 
 ```bash
-sudo dd if=<CUSTOM_IMAGE>.img of=/dev/<RPI MicroSD> status=progress
+sudo bmaptool copy <CUSTOM_IMAGE>.img.xz /dev/<RPI MicroSD>
 ```
 
-If the image has been compressed, it can still be flashed to the MicroSD card.
+**Alternative — dd (slower, no bmap needed):**
 
 ```bash
 xz -dc <CUSTOM_IMAGE>.img.xz | sudo dd of=/dev/<RPI MicroSD> status=progress
