@@ -97,6 +97,18 @@ DEFAULT_UBUNTU_CHECKSUM_URL = (
     "https://cdimage.ubuntu.com/releases/22.04.5/release/SHA256SUMS"
 )
 
+# Services disabled by default on the built image (unused on headless robots).
+# Can be overridden per-build via [build] disabled_services.
+DEFAULT_DISABLED_SERVICES = [
+    "snapd",
+    "snapd.socket",
+    "ModemManager",
+    "cups",
+    "cups-browsed",
+    "bluetooth",
+    "avahi-daemon",
+    "packagekit",
+]
 
 @dataclass
 class BuildConfig:
@@ -109,6 +121,10 @@ class BuildConfig:
     # Build options
     skip_compression: bool = False
     skip_sparse: bool = False
+    # Systemd services to disable on the built image
+    disabled_services: List[str] = field(
+        default_factory=lambda: list(DEFAULT_DISABLED_SERVICES)
+    )
 
     # Network settings
     networks: List[NetworkConfig] = field(default_factory=list)
@@ -206,6 +222,11 @@ def load_config(config_path: Path) -> BuildConfig:
         build = data["build"]
         cfg.skip_compression = build.get("skip_compression", cfg.skip_compression)
         cfg.skip_sparse = build.get("skip_sparse", cfg.skip_sparse)
+        if "disabled_services" in build:
+            cfg.disabled_services = [
+                s.strip() for s in build["disabled_services"]
+                if s and s.strip()
+            ]
 
     # Parse network section (optional)
     if "network" in data:
@@ -425,7 +446,8 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
         },
         "build": {
             "skip_compression": cfg.skip_compression,
-            "skip_sparse": cfg.skip_sparse
+            "skip_sparse": cfg.skip_sparse,
+            "disabled_services": cfg.disabled_services
         },
         "network": [
             {"ssid": net.ssid, "password": net.password}
@@ -532,6 +554,7 @@ USERNAME: {cfg.username}
 USER_PASSWORD: {user_password_display}
 SKIP_COMPRESSION: {cfg.skip_compression}
 SKIP_SPARSE: {cfg.skip_sparse}
+DISABLED_SERVICES: {', '.join(cfg.disabled_services) if cfg.disabled_services else '(none)'}
 NETWORK: {network_status}{network_info}
 OUTPUT_DIR: {cfg.output_directory}
 BUILD_SUBDIR: {build_subdir}
@@ -698,6 +721,28 @@ def get_provisioner_scripts(cfg: BuildConfig) -> List[str]:
     return scripts
 
 
+def validate_plugin_layout(plugin_dir: Path) -> None:
+    """Validate the robot plugin script layout.
+
+    Rules:
+      - build-time steps must be named NN_*.sh (numeric prefix defines order)
+      - runtime helper scripts live under a setup_scripts/ subdir
+      - any other *.sh is an error (likely a naming mistake)
+    """
+    import re
+    step_re = re.compile(r"^\d+_.*\.sh$")
+    for f in sorted(plugin_dir.rglob("*.sh")):
+        rel = f.relative_to(plugin_dir)
+        is_runtime = f.parent == plugin_dir / "setup_scripts"
+        if is_runtime or step_re.match(f.name):
+            continue
+        raise BuildError(
+            f"Invalid script in robot plugin '{plugin_dir.name}': {rel}\n"
+            f"Build-time steps must be named NN_*.sh (numeric prefix defines run order).\n"
+            f"Runtime first-boot helpers belong in a setup_scripts/ subdirectory."
+        )
+
+
 def generate_packer_template(cfg: BuildConfig) -> dict:
     """Generate the Packer template dynamically from config."""
     build_subdir = get_build_subdirectory(cfg)
@@ -723,6 +768,7 @@ def generate_packer_template(cfg: BuildConfig) -> dict:
         "TAILSCALE_AUTH_KEY={{user `TAILSCALE_AUTH_KEY`}}",
         f"TAILSCALE_USE_HOSTNAME={str(cfg.tailscale.use_hostname).lower()}",
         f"LIDAR={cfg.lidar.model}",
+        f"DISABLED_SERVICES={json.dumps(cfg.disabled_services)}",
     ]
 
     template = {
@@ -824,6 +870,7 @@ def generate_packer_template(cfg: BuildConfig) -> dict:
     # Copy robot plugin files if the directory exists
     robot_plugin_dir = Path("robots") / cfg.robot.type
     if robot_plugin_dir.is_dir():
+        validate_plugin_layout(robot_plugin_dir)
         template["provisioners"].append({
             "type": "file",
             "source": f"robots/{cfg.robot.type}/",
@@ -848,6 +895,16 @@ def generate_packer_template(cfg: BuildConfig) -> dict:
         "environment_vars": provisioner_env,
         "scripts": scripts,
     })
+
+    # Disable services not needed on a headless robot
+    if cfg.disabled_services:
+        disable_cmds = ["set -e", "echo 'Disabling unused services...'"]
+        for svc in cfg.disabled_services:
+            disable_cmds.append(f"systemctl disable --now {svc} 2>/dev/null || systemctl mask {svc} 2>/dev/null || echo 'skip: {svc}'")
+        template["provisioners"].append({
+            "type": "shell",
+            "inline": disable_cmds,
+        })
 
     # Fix ownership
     template["provisioners"].append({

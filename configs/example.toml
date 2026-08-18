@@ -29,6 +29,11 @@ hostname_prefix = "robot"
 skip_compression = false
 # Skip sparsification and bmap generation (bmaptool flashing support)
 # skip_sparse = false
+# Systemd services to disable on the built image (unused on headless robots).
+# Defaults: snapd, snapd.socket, ModemManager, cups, cups-browsed,
+# bluetooth, avahi-daemon, packagekit. Wifi services are NOT disabled.
+# To keep a default, remove it from this list; set an empty list to keep all.
+# disabled_services = []
 
 # Network section is optional.
 # If included, network connections will be added automatically.
