@@ -4,10 +4,16 @@ set -ux -o pipefail
 # Exit handler for diagnostics
 trap 'rc=$?; echo "[hostname_setup] exited with code $rc" >&2; exit $rc' EXIT
 
-read USERNAME < /etc/turtlebot3-user || { echo "Failed to read /etc/turtlebot3-user" >&2; exit 1; }
+read USERNAME < /etc/robot-user || { echo "Failed to read /etc/robot-user" >&2; exit 1; }
 
 if [[ ! -f /home/${USERNAME}/.setup_hostname ]]; then
     exit 0
+fi
+
+# Read hostname prefix from config
+HOSTNAME_PREFIX="robot"
+if [[ -f /etc/robot-config/hostname_prefix ]]; then
+    HOSTNAME_PREFIX=$(cat /etc/robot-config/hostname_prefix)
 fi
 
 # Get hostname from Python script; fall back to MAC-based name if it fails
@@ -19,9 +25,9 @@ if [[ -z "$NEW_HOSTNAME" ]]; then
     # Fallback: read MAC from eth0 via sysfs
     if [[ -f /sys/class/net/eth0/address ]]; then
         MAC=$(tr -d ':' < /sys/class/net/eth0/address)
-        NEW_HOSTNAME="tb3-${MAC: -6}"
+        NEW_HOSTNAME="${HOSTNAME_PREFIX}-${MAC: -6}"
     else
-        NEW_HOSTNAME="tb3-robot"
+        NEW_HOSTNAME="${HOSTNAME_PREFIX}-robot"
     fi
 fi
 

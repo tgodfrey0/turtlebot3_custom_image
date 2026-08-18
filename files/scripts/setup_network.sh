@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux -o pipefail
 
-read USERNAME < /etc/turtlebot3-user
+read USERNAME < /etc/robot-user
 NETWORKS_FILE="/home/$USERNAME/.config/networks.json"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 

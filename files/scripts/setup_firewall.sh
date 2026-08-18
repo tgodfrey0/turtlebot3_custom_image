@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux -o pipefail
 
-read USERNAME < /etc/turtlebot3-user
+read USERNAME < /etc/robot-user
 
 if [[ -f /home/${USERNAME}/.setup_firewall ]]; then
   ufw allow ssh

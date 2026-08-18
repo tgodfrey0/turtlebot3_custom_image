@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex -o pipefail
 
-read USERNAME < /etc/turtlebot3-user
+read USERNAME < /etc/robot-user
 
 set +u
 source /etc/profile.d/90-turtlebot-ros-profile.sh

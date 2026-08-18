@@ -7,7 +7,7 @@ USERNAME="${USERNAME:-robot}"
 ROS_DISTRO="${ROS_DISTRO:-humble}"
 
 set +u
-source /etc/profile.d/90-turtlebot-ros-profile.sh
+source /etc/profile.d/90-ros-profile.sh
 set -u
 
 apt-get update

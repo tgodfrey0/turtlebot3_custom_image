@@ -1,5 +1,5 @@
 [Unit]
-Description=Turtlebot3 Bringup service
+Description=Robot Bringup service
 
 [Service]
 Environment=USERNAME=robot

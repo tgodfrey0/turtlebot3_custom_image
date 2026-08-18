@@ -1,10 +1,18 @@
 import sys
 import uuid
+import os
 
 
 def get_hostname() -> str:
-    prefix = "tb3"
+    prefix = "robot"
     sep = "-"
+
+    # Read prefix from config if available
+    config_path = "/etc/robot-config/hostname_prefix"
+    if os.path.exists(config_path):
+        with open(config_path) as f:
+            prefix = f.read().strip() or prefix
+
     try:
         mac = uuid.getnode()
         octets = [f"{(mac >> i) & 0xFF:02x}" for i in range(0, 48, 8)][::-1]

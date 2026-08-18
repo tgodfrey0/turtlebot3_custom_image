@@ -1,10 +1,16 @@
 #!/bin/bash
 set -eux -o pipefail
 
-read USERNAME < /etc/turtlebot3-user
+read USERNAME < /etc/robot-user
+
+# Read workspace path from config, default to ~/colcon_ws
+WORKSPACE="/home/${USERNAME}/colcon_ws"
+if [[ -f /etc/robot-config/workspace_path ]]; then
+    WORKSPACE=$(cat /etc/robot-config/workspace_path)
+fi
 
 if [[ -f /home/${USERNAME}/.setup_ros ]]; then
-  cd /home/${USERNAME}/turtlebot3_ws/
+  cd "$WORKSPACE"
   colcon build
   set +u
   source install/setup.bash

@@ -32,5 +32,5 @@ apt-get --simulate install ${_ROS_PKGS} > /dev/null 2>&1
 apt-get -y install ${_ROS_PKGS}
 unset _ROS_PKGS
 
-echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /etc/profile.d/90-turtlebot-ros-profile.sh
-chmod 755 /etc/profile.d/90-turtlebot-ros-profile.sh
+echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /etc/profile.d/90-ros-profile.sh
+chmod 755 /etc/profile.d/90-ros-profile.sh
