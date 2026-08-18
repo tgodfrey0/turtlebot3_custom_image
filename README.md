@@ -1,6 +1,11 @@
-# Custom TurtleBot3 Image
+# Robot Image Builder
 
-This repo provides a way to build a TurtleBot3 image with the necessary setup already complete. It works using Packer and is currently in the early stages of development. The aim of this is to make it easier to provision many TurtleBot3s for use in a swarm.
+Build custom Ubuntu disk images for robot single-board computers (SBCs) using
+Packer. Works for any Pi-based robot — the common system setup is generic, and
+robot-specific behaviour is provided by pluggable robot modules in `robots/`.
+
+Originally built for provisioning many TurtleBot3 robots in a swarm; now
+generalised. TurtleBot3 lives on as a reference robot plugin.
 
 **Please send any feedback or questions to Toby Godfrey ([t.godfrey@soton.ac.uk](mailto:t.godfrey@soton.ac.uk)).**
 
@@ -12,46 +17,93 @@ This repo provides a way to build a TurtleBot3 image with the necessary setup al
 
 ### Python Dependencies
 
-Install the required Python packages:
-
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
-
-The build system uses TOML configuration files. Configuration files are stored in the `configs/` directory.
-
-### Quick Start
-
-1. Copy an example config and customise it:
+## Quick Start
 
 ```bash
 cp configs/example.toml configs/my_robot.toml
 # Edit configs/my_robot.toml with your settings
-```
-
-2. Run the build:
-
-```bash
 python build.py --config configs/my_robot.toml
 ```
 
-### Configuration
+### Install git hooks (recommended)
 
-The configuration file controls all build options:
+The pre-commit hook blocks commits containing Tailscale auth keys.
 
-- **Model**: Set `model.type` to `waffle` or `burger`
-- **Network**: Optional `[[network]]` sections - use TOML array syntax (double brackets) to configure one or more WiFi networks
-- **Compression**: Set `build.skip_compression` to `true` to skip `.xz` compression
-- **Version**: Auto-detected from git tags, or set `image.version` manually
-- **ROS Distro**: Set `ros.distro` to select the ROS2 distribution. Valid values: `humble` (Ubuntu 22.04), `iron` (22.04), `jazzy` (24.04), `rolling` (24.04). The Ubuntu base image URL is auto-derived from the selected distro, or you can override it in `[source]`.
+```bash
+bash scripts/install_hooks.sh
+```
 
-See `configs/example.toml` for a complete example with commented networks, and `configs/waffle_with_network.toml` for an example with multiple networks configured.
+## Configuration
 
-#### Multiple WiFi Networks
+Builds are controlled entirely by a TOML config file. See
+`configs/example.toml` for a fully documented example.
 
-You can configure multiple WiFi networks using TOML array syntax:
+Key sections:
+
+| Section | Purpose |
+|---------|---------|
+| `[image]` | Image name, version, output directory, size |
+| `[robot]` | Robot type (plugin selector), model, hostname prefix, bringup command |
+| `[robot.components]` | Robot-specific feature toggles (e.g. `camera`) |
+| `[[network]]` | WiFi networks (one `[[network]]` per AP, order = priority) |
+| `[user]` | Username and password |
+| `[ros]` | ROS2 distro + domain ID. **Omit this entire section to build without ROS2** |
+| `[tailscale]` | Tailscale VPN config. Installed by default |
+| `[source]` | Ubuntu base image URL. Auto-derived from ROS distro, or set explicitly |
+| `[advanced]` | Packer builder image, verbose |
+
+### Generic robot (no ROS, no robot plugin)
+
+```toml
+[image]
+name = "plain_pi"
+
+[robot]
+type = "generic"
+hostname_prefix = "node"
+
+[source]
+url = "https://cdimage.ubuntu.com/releases/24.04.3/release/ubuntu-24.04.3-preinstalled-server-arm64+raspi.img.xz"
+checksum_url = "https://cdimage.ubuntu.com/releases/24.04.3/release/SHA256SUMS"
+```
+
+This produces a base image with: configured user, SSH, firewall, MAC-based
+hostname, WiFi setup (if configured), and Tailscale — but no ROS and no
+robot-specific packages.
+
+### TurtleBot3 (reference plugin)
+
+```toml
+[image]
+name = "tb3_swarm"
+
+[robot]
+type = "turtlebot3"
+model = "burger"
+hostname_prefix = "tb3"
+bringup_command = "ros2 launch turtlebot3_bringup robot.launch.py"
+
+[robot.components]
+opencr = true
+camera = true
+
+[lidar]
+model = "LDS-02"
+
+[ros]
+domain_id = 30
+distro = "jazzy"
+
+[[network]]
+ssid = "MySwarmAP"
+password = "password"
+```
+
+### Multiple WiFi Networks
 
 ```toml
 [[network]]
@@ -67,9 +119,44 @@ ssid = "OpenNetwork"
 # Leave password empty for open networks
 ```
 
-All configured networks will be added to the netplan configuration and the robot will attempt to connect to them in order of priority.
+The robot attempts to connect in order of priority.
 
-### Build Options
+### ROS Optional
+
+ROS2 is installed only when the `[ros]` section is present. Without it, the
+image ships no ROS packages and you must provide an explicit `[source]`
+section.
+
+- `[ros] distro` — `humble` (22.04), `iron` (22.04), `jazzy` (24.04), `rolling` (24.04)
+- `[ros] domain_id` — valid range 0–101
+
+### Tailscale
+
+Tailscale is installed by default. Options:
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `enabled` | `true` | Install Tailscale at all |
+| `auth_key` | *(see below)* | Auto-authorize on first boot |
+| `use_hostname` | `true` | Use the MAC-based hostname as the Tailscale node name |
+
+**Do not put auth keys in config files.** Use the `TAILSCALE_AUTH_KEY`
+environment variable instead (it takes precedence over config):
+
+```bash
+TAILSCALE_AUTH_KEY=tskey-auth-... python build.py --config configs/my_robot.toml
+```
+
+Keys look like `tskey-auth-...`. Generate them at
+<https://login.tailscale.com/admin/settings/keys>. A `.githooks/pre-commit`
+hook blocks commits that accidentally contain a key (install with
+`bash scripts/install_hooks.sh`).
+
+If no auth key is available, wait for first boot and run `tailscale up`
+manually on the robot. If an auth key *is* provided, the image auto-joins your
+tailnet on first boot.
+
+## Build Options
 
 ```bash
 # Basic build
@@ -83,24 +170,23 @@ python build.py --config configs/my_config.toml --yes
 
 # Verbose output
 python build.py --config configs/my_config.toml --verbose
-
-# Custom Packer file
-python build.py --config configs/my_config.toml --packer-file my_packer.json
 ```
 
-### Output
+The Packer template (`packer_build.json`) is generated automatically from your
+config and saved next to the output image.
 
-The build outputs the following files:
-- `<name>-<model>-image-<version>.img.xz` — compressed disk image (if compression enabled)
-- `<name>-<model>-image-<version>.img.xz.bmap` — block map for bmaptool (if sparse enabled)
+## Output
 
-If compression is disabled (`skip_compression = true`), the raw `.img` and `.img.bmap` files are produced instead.
+- `<name>-<robot>-image-<version>.img.xz` — compressed disk image
+- `<name>-<robot>-image-<version>.img.xz.bmap` — block map for bmaptool
 
-For example: `tb3-waffle_pi-image-v1.2.3.img.xz` + `tb3-waffle_pi-image-v1.2.3.img.xz.bmap`
+If compression is disabled (`skip_compression = true`), raw `.img` and
+`.img.bmap` files are produced instead.
 
-### Flashing
+The `[robot]` label used in filenames is `type` or `type-model`
+(e.g. `turtlebot3-burger`).
 
-The `.bmap` file allows `bmaptool` to skip empty blocks, dramatically speeding up flashing.
+## Flashing
 
 **Prerequisite:** `sudo apt install bmap-tools`
 
@@ -118,46 +204,53 @@ xz -dc <CUSTOM_IMAGE>.img.xz | sudo dd of=/dev/<RPI MicroSD> status=progress
 
 **MAKE SURE YOU SELECT THE CORRECT DRIVE -- the above commands will wipe the drive!**
 
-The address of the MicroSD card can be found with `sudo fdisk -l`.
-
-You may wish to use something a bit more friendly than `dd`, such as [Balena Etcher](https://etcher.balena.io/).
+Find the MicroSD address with `sudo fdisk -l`. You may prefer
+[Balena Etcher](https://etcher.balena.io/).
 
 ### After Flashing
 
-The image is 10GB to speed up creation and flashing. After, the image has been flashed to the MicroSD card, the partition size can be expanded to fill the rest of the drive.
+The image is 10GB to speed up creation and flashing. After flashing, expand
+the partition to fill the drive using e.g. [GParted](https://gparted.org/).
 
-This can be done using something like [GParted](https://gparted.org/).
-
-You can then log into the Pi with the username `robot` and the password `turtlebot3`.
+Log in with the configured `[user]` credentials (defaults: `robot` /
+`changeme`).
 
 ## Features
 
-This script completes several tasks automatically.
+At build time:
 
-When creating the image:
+- Base packages installed
+- Configurable user created with passwordless sudo, SSH, and serial access
+- SSH enabled, auto-sleep disabled
+- Hostname service installed (MAC-derived, configurable prefix)
+- ROS2 installed (optional, configurable distro)
+- Tailscale installed (optional, auto-auth via env key)
+- Robot plugin packages installed (e.g. TurtleBot3 ROS packages)
+- WiFi configured (if `[[network]]` sections included)
 
-- Packages are updated
-- A hostname `systemd` service is created
-- QoL improvements (e.g. disable auto-sleep)
-- Install ROS2 (configurable: Humble, Jazzy, Rolling, etc.)
-- Install the TurtleBot3 ROS packages
-- Install the OpenCR packages
-- Edit the firmware config to allow the Pi Camera to be used
-- Enables SSH access
-- Configures network details to allow for WiFi connection on boot (if the `[[network]]` sections are included in the config)
-- Supports multiple WiFi networks for better connectivity options
+On first boot (one-shot services, each gated on a `.setup_*` marker file):
 
-When booting for the first time:
+- Hostname set to `<prefix>-<3 octets of MAC>` (e.g. `tb3-12-34-56`)
+- WiFi configured via netplan
+- Firewall exception added for SSH
+- Robot-specific firmware flashed (e.g. TurtleBot3's OpenCR board)
+- Tailscale authorized if an auth key was provided
+- Optional: colcon workspace rebuilt
 
-- The hostname is changed to `turtlebot_XX_XX_XX` (where `XX_XX_XX` are the last three octets of the robot's MAC address)
-  - This only runs if the file `/home/robot/.setup_hostname` is present. If you play with the hostname and want to reset it touch that file and reboot and the service will run.
-- The OpenCR board is configured
-  - This runs at boot so the RPi should be connected to the OpenCR board during boot. This service also only runs if the file `/home/robot/.setup_opencr` is present so if the board needs to be reconfigured just recreate that file and reboot.
-- A firewall exception is added for SSH
-  - This only runs if the file `/home/robot/.setup_firewall` is present.
-- The Pi Camera is enabled in the `/boot/firmware/` configuration file
-  - This only runs if the file `/home/robot/.setup_camera` is present.
-
-If you want to automatically launch the TurtleBot3 bringup package, enable the `bringup.service` service.
+Re-run any one-shot setup by recreating its marker file
+(e.g. `touch /home/robot/.setup_hostname`) and rebooting.
 
 ### **_After booting the first time, the system must be restarted for several changes to take effect_**
+
+## Adding a New Robot
+
+See `robots/README.md` for the plugin architecture. In short:
+
+1. Create `robots/<type>/setup.sh` — runs at build time (sourced by
+   `scripts/50_robot_setup.sh`).
+2. Add any first-boot runtime scripts and copy them into
+   `/home/$USERNAME/setup_scripts/`.
+3. Set `[robot] type = "<type>"` in your config.
+
+Available environment variables inside `setup.sh` (USERNAME, ROS_DISTRO,
+ROBOT_COMPONENTS, etc.) are documented in `robots/README.md`.
