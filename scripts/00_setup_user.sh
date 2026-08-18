@@ -3,7 +3,7 @@ set -eux -o pipefail
 
 # Use environment variables with defaults
 USERNAME="${USERNAME:-robot}"
-USER_PASSWORD="${USER_PASSWORD:-turtlebot3}"
+USER_PASSWORD="${USER_PASSWORD:-changeme}"
 
 # Delete the default Ubuntu user
 userdel -r ubuntu || echo "No default Ubuntu user"
