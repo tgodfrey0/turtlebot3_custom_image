@@ -10,8 +10,8 @@ Usage:
     python build.py --config configs/my_config.toml --dry-run
     python build.py --config configs/my_config.toml -y
 
-The [network] section is optional. If included with an SSID, network connection
-will be added automatically during the build.
+The [network] and [tailscale] sections are optional. Robot-specific setup
+is handled via plugin scripts in the robots/ directory.
 """
 
 import argparse
@@ -23,7 +23,7 @@ import sys
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 import json
 
 
@@ -32,6 +32,31 @@ class NetworkConfig:
     """Configuration for a single WiFi network."""
     ssid: str = ""
     password: str = ""
+
+
+@dataclass
+class RobotConfig:
+    """Robot-specific configuration."""
+    type: str = "generic"
+    model: str = ""
+    hostname_prefix: str = "robot"
+    bringup_command: str = ""
+    components: Dict[str, bool] = field(default_factory=dict)
+
+
+@dataclass
+class TailscaleConfig:
+    """Tailscale VPN configuration."""
+    enabled: bool = True
+    auth_key: str = ""
+    use_hostname: bool = True
+
+
+@dataclass
+class LidarConfig:
+    """LIDAR configuration."""
+    model: str = ""
+
 
 try:
     import tomli as tomllib
@@ -64,39 +89,49 @@ ROS_DISTRO_UBUNTU_RELEASE_MAP: dict[str, str] = {
 
 VALID_ROS_DISTROS = set(ROS_DISTRO_UBUNTU_MAP.keys())
 
+DEFAULT_UBUNTU_SOURCE_URL = (
+    "https://cdimage.ubuntu.com/releases/22.04.5/release/"
+    "ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
+)
+DEFAULT_UBUNTU_CHECKSUM_URL = (
+    "https://cdimage.ubuntu.com/releases/22.04.5/release/SHA256SUMS"
+)
+
 
 @dataclass
 class BuildConfig:
     """Configuration for the build process."""
     # Image settings
-    name: str = "tb3"
+    name: str = "robot"
     version: Optional[str] = None
     output_directory: str = "build"
-
-    # Model settings
-    model_type: str = "burger"
 
     # Build options
     skip_compression: bool = False
     skip_sparse: bool = False
 
-    # Network settings (list of networks, empty list means no networks)
+    # Network settings
     networks: List[NetworkConfig] = field(default_factory=list)
 
-    # User settings (optional - defaults to robot/turtlebot3)
+    # User settings
     username: str = "robot"
-    user_password: str = "turtlebot3"
+    user_password: str = "changeme"
 
-    # LIDAR settings (optional - defaults to LDS-02)
-    lidar: str = "LDS-02"
+    # Robot settings
+    robot: RobotConfig = field(default_factory=RobotConfig)
+    lidar: LidarConfig = field(default_factory=LidarConfig)
 
-    # ROS settings (optional - defaults to 0)
+    # ROS settings (optional)
+    ros_enabled: bool = True
     ros_domain_id: int = 0
     ros_distro: str = "humble"
 
+    # Tailscale settings
+    tailscale: TailscaleConfig = field(default_factory=TailscaleConfig)
+
     # Source image
-    source_url: str = "https://cdimage.ubuntu.com/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
-    checksum_url: str = "https://cdimage.ubuntu.com/releases/22.04.5/release/SHA256SUMS"
+    source_url: str = DEFAULT_UBUNTU_SOURCE_URL
+    checksum_url: str = DEFAULT_UBUNTU_CHECKSUM_URL
 
     # Image size
     image_size: str = "10G"
@@ -108,8 +143,6 @@ class BuildConfig:
 
     # Computed fields
     computed_version: str = field(default="", init=False)
-    opencr_model: str = field(default="", init=False)
-    turtlebot3_model: str = field(default="", init=False)
     add_connection: bool = field(default=False, init=False)
     ubuntu_version: str = field(default="", init=False)
 
@@ -126,35 +159,53 @@ def load_config(config_path: Path) -> BuildConfig:
     """Load configuration from TOML file."""
     if not config_path.exists():
         raise BuildError(f"Configuration file not found: {config_path}")
-    
+
     with open(config_path, "rb") as f:
         data = tomllib.load(f)
-    
+
     cfg = BuildConfig()
-    
+
     # Parse image section
     if "image" in data:
         img = data["image"]
         cfg.name = img.get("name", cfg.name)
         cfg.version = img.get("version")
         cfg.output_directory = img.get("output_directory", cfg.output_directory)
-    
-    # Parse model section
-    if "model" in data:
+
+    # Parse image size section
+    if "image" in data and "size" in data["image"]:
+        size = data["image"]["size"]
+        cfg.image_size = size.get("total", cfg.image_size)
+        cfg.boot_size = size.get("boot_partition", cfg.boot_size)
+
+    # Parse robot section
+    if "robot" in data:
+        rob = data["robot"]
+        cfg.robot.type = rob.get("type", cfg.robot.type)
+        cfg.robot.model = rob.get("model", cfg.robot.model)
+        cfg.robot.hostname_prefix = rob.get("hostname_prefix", cfg.robot.hostname_prefix)
+        cfg.robot.bringup_command = rob.get("bringup_command", cfg.robot.bringup_command)
+        if "components" in rob:
+            cfg.robot.components = dict(rob["components"])
+
+    # Backward compat: migrate [model] section to [robot]
+    if "model" in data and "robot" not in data:
         model = data["model"]
-        cfg.model_type = model.get("type", cfg.model_type)
-    
+        model_type = model.get("type", "")
+        if model_type:
+            print("Warning: [model] section is deprecated. Use [robot] section instead.")
+            cfg.robot.type = "turtlebot3"
+            cfg.robot.model = model_type
+
     # Parse build section
     if "build" in data:
         build = data["build"]
         cfg.skip_compression = build.get("skip_compression", cfg.skip_compression)
         cfg.skip_sparse = build.get("skip_sparse", cfg.skip_sparse)
-    
+
     # Parse network section (optional)
-    # Support both single [[network]] and multiple [[network]] entries
     if "network" in data:
         networks_data = data["network"]
-        # Handle both single table and array of tables
         if isinstance(networks_data, list):
             for net in networks_data:
                 ssid = net.get("ssid")
@@ -164,33 +215,41 @@ def load_config(config_path: Path) -> BuildConfig:
                         password=net.get("password", "")
                     ))
         else:
-            # Single network table (backward compatibility)
             ssid = networks_data.get("ssid")
             if ssid:
                 cfg.networks.append(NetworkConfig(
                     ssid=ssid,
                     password=networks_data.get("password", "")
                 ))
-        # Automatically enable add_connection if networks are configured
         if cfg.networks:
             cfg.add_connection = True
 
-    # Parse user section (optional - defaults to robot/turtlebot3)
+    # Parse user section
     if "user" in data:
         usr = data["user"]
         cfg.username = usr.get("username", cfg.username)
         cfg.user_password = usr.get("password", cfg.user_password)
 
-    # Parse lidar section (optional - defaults to LDS-02)
+    # Parse lidar section (optional, robot-specific)
     if "lidar" in data:
         ldr = data["lidar"]
-        cfg.lidar = ldr.get("model", cfg.lidar)
+        cfg.lidar.model = ldr.get("model", cfg.lidar.model)
 
-    # Parse ros section (optional - defaults to 0)
+    # Parse ros section (optional - omit to disable ROS)
     if "ros" in data:
+        cfg.ros_enabled = True
         ros = data["ros"]
         cfg.ros_domain_id = ros.get("domain_id", cfg.ros_domain_id)
         cfg.ros_distro = ros.get("distro", cfg.ros_distro)
+    else:
+        cfg.ros_enabled = False
+
+    # Parse tailscale section (optional)
+    if "tailscale" in data:
+        ts = data["tailscale"]
+        cfg.tailscale.enabled = ts.get("enabled", cfg.tailscale.enabled)
+        cfg.tailscale.auth_key = ts.get("auth_key", cfg.tailscale.auth_key)
+        cfg.tailscale.use_hostname = ts.get("use_hostname", cfg.tailscale.use_hostname)
 
     # Parse source section
     if "source" in data:
@@ -198,19 +257,13 @@ def load_config(config_path: Path) -> BuildConfig:
         src = data["source"]
         cfg.source_url = src.get("url", cfg.source_url)
         cfg.checksum_url = src.get("checksum_url", cfg.checksum_url)
-    
-    # Parse image size section
-    if "image" in data and "size" in data["image"]:
-        size = data["image"]["size"]
-        cfg.image_size = size.get("total", cfg.image_size)
-        cfg.boot_size = size.get("boot_partition", cfg.boot_size)
-    
+
     # Parse advanced section
     if "advanced" in data:
         adv = data["advanced"]
         cfg.packer_builder_image = adv.get("packer_builder_image", cfg.packer_builder_image)
         cfg.verbose = adv.get("verbose", cfg.verbose)
-    
+
     return cfg
 
 
@@ -250,52 +303,56 @@ def prompt_sudo() -> bool:
 
 def validate_config(cfg: BuildConfig) -> None:
     """Validate the build configuration."""
-    if cfg.model_type not in ["waffle", "burger"]:
-        raise BuildError(f"Invalid model type: {cfg.model_type}. Must be 'waffle' or 'burger'.")
+    if not cfg.ros_enabled and not cfg._source_explicit:
+        raise BuildError(
+            "ROS is disabled but no [source] section provided. "
+            "When [ros] is omitted, you must specify [source] url and checksum_url."
+        )
 
-    valid_lidars = ["LDS-01", "LDS-02", "LDS-03"]
-    if cfg.lidar not in valid_lidars:
-        raise BuildError(f"Invalid lidar model: {cfg.lidar}. Must be one of: {', '.join(valid_lidars)}.")
+    if not cfg.ros_enabled and cfg.ros_distro not in VALID_ROS_DISTROS:
+        raise BuildError(
+            f"Invalid ROS distro: {cfg.ros_distro}. "
+            f"Must be one of: {', '.join(sorted(VALID_ROS_DISTROS))}."
+        )
 
-    if not (0 <= cfg.ros_domain_id <= 101):
-        raise BuildError(f"Invalid ROS_DOMAIN_ID: {cfg.ros_domain_id}. Must be between 0 and 101.")
-
-    if cfg.ros_distro not in VALID_ROS_DISTROS:
-        raise BuildError(f"Invalid ROS distro: {cfg.ros_distro}. Must be one of: {', '.join(sorted(VALID_ROS_DISTROS))}.")
+    if cfg.ros_enabled:
+        if cfg.ros_distro not in VALID_ROS_DISTROS:
+            raise BuildError(
+                f"Invalid ROS distro: {cfg.ros_distro}. "
+                f"Must be one of: {', '.join(sorted(VALID_ROS_DISTROS))}."
+            )
+        if not (0 <= cfg.ros_domain_id <= 101):
+            raise BuildError(
+                f"Invalid ROS_DOMAIN_ID: {cfg.ros_domain_id}. Must be between 0 and 101."
+            )
 
 
 def compute_derived_values(cfg: BuildConfig) -> None:
     """Compute derived values from the configuration."""
     # Get version
     cfg.computed_version = cfg.version or get_git_version()
-    
-    # Set model values
-    cfg.opencr_model = cfg.model_type
-    if cfg.model_type == "waffle":
-        cfg.turtlebot3_model = f"{cfg.model_type}_pi"
+
+    # Compute Ubuntu version and source URLs from ROS distro (if ROS enabled)
+    if cfg.ros_enabled:
+        cfg.ubuntu_version = ROS_DISTRO_UBUNTU_MAP.get(cfg.ros_distro, "22.04")
+        ubuntu_release = ROS_DISTRO_UBUNTU_RELEASE_MAP.get(cfg.ros_distro, "22.04.5")
+        if not cfg._source_explicit:
+            cfg.source_url = (
+                f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/"
+                f"ubuntu-{ubuntu_release}-preinstalled-server-arm64+raspi.img.xz"
+            )
+            cfg.checksum_url = (
+                f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/SHA256SUMS"
+            )
     else:
-        cfg.turtlebot3_model = cfg.model_type
-
-    # Compute Ubuntu version from ROS distro
-    cfg.ubuntu_version = ROS_DISTRO_UBUNTU_MAP.get(cfg.ros_distro, "22.04")
-    ubuntu_release = ROS_DISTRO_UBUNTU_RELEASE_MAP.get(cfg.ros_distro, "22.04.5")
-
-    # Auto-derive source URLs from Ubuntu version if not explicitly set
-    if not cfg._source_explicit:
-        cfg.source_url = (
-            f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/"
-            f"ubuntu-{ubuntu_release}-preinstalled-server-arm64+raspi.img.xz"
-        )
-        cfg.checksum_url = (
-            f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/SHA256SUMS"
-        )
+        cfg.ubuntu_version = "custom"
 
 
 def prompt_missing_network_config(cfg: BuildConfig) -> None:
     """Prompt for missing network configuration if network section is present but empty."""
     if not cfg.add_connection:
         return
-    
+
     if not cfg.networks:
         ssid = input("SSID: ").strip()
         if ssid:
@@ -306,9 +363,19 @@ def prompt_missing_network_config(cfg: BuildConfig) -> None:
 
 
 def get_build_subdirectory(cfg: BuildConfig) -> Path:
-    """Generate the build subdirectory path based on image name, model, and version."""
-    subdir_name = f"{cfg.name}-{cfg.turtlebot3_model}-{cfg.computed_version}"
+    """Generate the build subdirectory path."""
+    robot_label = cfg.robot.type
+    if cfg.robot.model:
+        robot_label = f"{cfg.robot.type}-{cfg.robot.model}"
+    subdir_name = f"{cfg.name}-{robot_label}-{cfg.computed_version}"
     return Path(cfg.output_directory) / subdir_name
+
+
+def get_robot_label(cfg: BuildConfig) -> str:
+    """Get the robot label for output filenames."""
+    if cfg.robot.model:
+        return f"{cfg.robot.type}-{cfg.robot.model}"
+    return cfg.robot.type
 
 
 def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
@@ -323,8 +390,12 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
                 "boot_partition": cfg.boot_size
             }
         },
-        "model": {
-            "type": cfg.model_type
+        "robot": {
+            "type": cfg.robot.type,
+            "model": cfg.robot.model,
+            "hostname_prefix": cfg.robot.hostname_prefix,
+            "bringup_command": cfg.robot.bringup_command,
+            "components": cfg.robot.components,
         },
         "build": {
             "skip_compression": cfg.skip_compression,
@@ -339,11 +410,17 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
             "password": cfg.user_password
         },
         "lidar": {
-            "model": cfg.lidar
+            "model": cfg.lidar.model
         },
         "ros": {
+            "enabled": cfg.ros_enabled,
             "domain_id": cfg.ros_domain_id,
             "distro": cfg.ros_distro
+        } if cfg.ros_enabled else {"enabled": False},
+        "tailscale": {
+            "enabled": cfg.tailscale.enabled,
+            "auth_key": "***" if cfg.tailscale.auth_key else "",
+            "use_hostname": cfg.tailscale.use_hostname,
         },
         "source": {
             "url": cfg.source_url,
@@ -355,8 +432,7 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
         },
         "_computed": {
             "computed_version": cfg.computed_version,
-            "opencr_model": cfg.opencr_model,
-            "turtlebot3_model": cfg.turtlebot3_model,
+            "robot_label": get_robot_label(cfg),
             "add_connection": cfg.add_connection,
             "ubuntu_version": cfg.ubuntu_version
         }
@@ -368,34 +444,17 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
         with open(config_path, "wb") as f:
             tomli_w.dump(config_dict, f)
     except ImportError:
-        # Fallback to writing TOML manually if tomli_w is not available
         with open(config_path, "w") as f:
             f.write("# Auto-generated build configuration\n")
             f.write("# Includes all values (user-provided and defaults)\n\n")
-            f.write(f"name = {cfg.name!r}\n")
-            f.write(f"version = {cfg.version!r}\n")
-            f.write(f"output_directory = {cfg.output_directory!r}\n")
-            f.write(f"computed_version = {cfg.computed_version!r}\n")
-            f.write(f"model_type = {cfg.model_type!r}\n")
-            f.write(f"skip_compression = {cfg.skip_compression}\n")
-            f.write(f"skip_sparse = {cfg.skip_sparse}\n")
-            f.write(f"add_connection = {cfg.add_connection}\n")
-            f.write(f"networks_count = {len(cfg.networks)}\n")
-            for i, net in enumerate(cfg.networks):
-                f.write(f"network_{i}_ssid = {net.ssid!r}\n")
-                f.write(f"network_{i}_password = {'***' if net.password else ''!r}\n")
-            f.write(f"username = {cfg.username!r}\n")
-            f.write(f"user_password = {'***' if cfg.user_password else None!r}\n")
-            f.write(f"lidar = {cfg.lidar!r}\n")
-            f.write(f"ros_domain_id = {cfg.ros_domain_id}\n")
-            f.write(f"ros_distro = {cfg.ros_distro!r}\n")
-            f.write(f"ubuntu_version = {cfg.ubuntu_version!r}\n")
-            f.write(f"image_size = {cfg.image_size!r}\n")
-            f.write(f"boot_size = {cfg.boot_size!r}\n")
-            f.write(f"source_url = {cfg.source_url!r}\n")
-            f.write(f"checksum_url = {cfg.checksum_url!r}\n")
-            f.write(f"packer_builder_image = {cfg.packer_builder_image!r}\n")
-            f.write(f"verbose = {cfg.verbose}\n")
+            for section_name, section_data in config_dict.items():
+                f.write(f"\n[{section_name}]\n")
+                if isinstance(section_data, dict):
+                    for k, v in section_data.items():
+                        f.write(f"{k} = {v!r}\n")
+                elif isinstance(section_data, list):
+                    for item in section_data:
+                        f.write(f"  {item!r}\n")
 
 
 def display_config(cfg: BuildConfig) -> None:
@@ -403,6 +462,7 @@ def display_config(cfg: BuildConfig) -> None:
     user_password_display = "*" * len(cfg.user_password)
     network_status = "enabled" if cfg.add_connection else "disabled"
     build_subdir = get_build_subdirectory(cfg)
+    robot_label = get_robot_label(cfg)
 
     # Build network info string
     if cfg.networks:
@@ -413,15 +473,33 @@ def display_config(cfg: BuildConfig) -> None:
     else:
         network_info = "\nNETWORKS: (none configured)"
 
+    # ROS info
+    if cfg.ros_enabled:
+        ros_info = f"ROS_DISTRO: {cfg.ros_distro}\nROS_DOMAIN_ID: {cfg.ros_domain_id}"
+    else:
+        ros_info = "ROS: disabled"
+
+    # Tailscale info
+    ts_status = "enabled" if cfg.tailscale.enabled else "disabled"
+    if cfg.tailscale.auth_key:
+        ts_status += " (with auth key)"
+    elif cfg.tailscale.enabled:
+        ts_status += " (manual auth required)"
+
+    # LIDAR info
+    lidar_info = cfg.lidar.model if cfg.lidar.model else "(not set)"
+
     print(f"""
 Configuration:
 --------------
 NAME: {cfg.name}
 VERSION: {cfg.computed_version}
-MODEL: {cfg.model_type}
-LIDAR: {cfg.lidar}
-ROS_DISTRO: {cfg.ros_distro}
-ROS_DOMAIN_ID: {cfg.ros_domain_id}
+ROBOT_TYPE: {cfg.robot.type}
+ROBOT_MODEL: {robot_label}
+HOSTNAME_PREFIX: {cfg.robot.hostname_prefix}
+LIDAR: {lidar_info}
+{ros_info}
+TAILSCALE: {ts_status}
 UBUNTU_VERSION: {cfg.ubuntu_version}
 USERNAME: {cfg.username}
 USER_PASSWORD: {user_password_display}
@@ -442,8 +520,9 @@ def confirm_build() -> bool:
 def check_output_file(cfg: BuildConfig, auto_yes: bool = False) -> None:
     """Check if output file already exists and prompt for overwrite."""
     build_subdir = get_build_subdirectory(cfg)
-    pattern = f"{cfg.name}-{cfg.turtlebot3_model}-image-{cfg.computed_version}.img*"
-    
+    robot_label = get_robot_label(cfg)
+    pattern = f"{cfg.name}-{robot_label}-image-{cfg.computed_version}.img*"
+
     if build_subdir.exists():
         for f in build_subdir.glob(pattern):
             if auto_yes:
@@ -470,13 +549,13 @@ def download_file(url: str, dest: Path, timeout: int = 3600) -> None:
     """Download a file with progress reporting."""
     print(f"Downloading: {url}")
     print(f"Destination: {dest}")
-    
+
     def report_progress(block_num: int, block_size: int, total_size: int) -> None:
         downloaded = block_num * block_size
         if total_size > 0:
             percent = min(downloaded * 100 / total_size, 100)
             print(f"\rProgress: {percent:.1f}% ({downloaded // 1024 // 1024}MB / {total_size // 1024 // 1024}MB)", end="", flush=True)
-    
+
     urllib.request.urlretrieve(url, dest, reporthook=report_progress)
     print()  # New line after progress
 
@@ -497,7 +576,7 @@ def get_expected_checksum(checksum_url: str, filename: str) -> str:
     print(f"Fetching checksum from: {checksum_url}")
     with urllib.request.urlopen(checksum_url, timeout=30) as response:
         checksums = response.read().decode('utf-8')
-    
+
     for line in checksums.strip().split('\n'):
         parts = line.split()
         if len(parts) >= 2:
@@ -505,19 +584,19 @@ def get_expected_checksum(checksum_url: str, filename: str) -> str:
             name = parts[1].lstrip('*')  # Remove leading * if present
             if filename in name or name in filename:
                 return checksum
-    
+
     raise BuildError(f"Could not find checksum for {filename} in {checksum_url}")
 
 
 def download_source_image(cfg: BuildConfig) -> Path:
     """Download source image if not already cached, verify checksum, and return local path."""
     cache_dir = get_cache_dir()
-    
+
     # Extract filename from URL
     url_path = Path(cfg.source_url)
     filename = url_path.name
     local_path = cache_dir / filename
-    
+
     # Check if file already exists
     if local_path.exists():
         print(f"Found cached file: {local_path}")
@@ -534,10 +613,10 @@ def download_source_image(cfg: BuildConfig) -> Path:
             print(f"Warning: Could not verify cached file: {e}")
             print("Proceeding with cached file...")
             return local_path
-    
+
     # Download the file
     download_file(cfg.source_url, local_path)
-    
+
     # Verify checksum
     try:
         expected_checksum = get_expected_checksum(cfg.checksum_url, filename)
@@ -547,7 +626,7 @@ def download_source_image(cfg: BuildConfig) -> Path:
         print("Checksum verified")
     except Exception as e:
         print(f"Warning: Could not verify checksum: {e}")
-    
+
     return local_path
 
 
@@ -571,7 +650,7 @@ def pull_packer_image(cfg: BuildConfig) -> None:
 def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path) -> None:
     """Run the Packer build."""
     build_subdir = get_build_subdirectory(cfg)
-    
+
     # Get the checksum for the source image
     url_path = Path(cfg.source_url)
     filename = url_path.name
@@ -581,7 +660,7 @@ def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path
     except Exception as e:
         print(f"Warning: Could not fetch checksum: {e}")
         expected_checksum = ""
-    
+
     cmd = [
         "sudo", "podman", "run", "--rm", "--privileged",
         "--pid=host",
@@ -593,15 +672,22 @@ def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path
         "-var", f"VERSION={cfg.computed_version}",
         "-var", f"SKIP_COMPRESSION={str(cfg.skip_compression).lower()}",
         "-var", f"SKIP_SPARSE={str(cfg.skip_sparse).lower()}",
-        "-var", f"OPENCR_MODEL={cfg.opencr_model}",
-        "-var", f"TURTLEBOT3_MODEL={cfg.turtlebot3_model}",
+        "-var", f"ROBOT_TYPE={cfg.robot.type}",
+        "-var", f"ROBOT_MODEL={get_robot_label(cfg)}",
+        "-var", f"HOSTNAME_PREFIX={cfg.robot.hostname_prefix}",
+        "-var", f"ROBOT_COMPONENTS={json.dumps(cfg.robot.components)}",
+        "-var", f"BRINGUP_COMMAND={cfg.robot.bringup_command}",
         "-var", f"ADD_CONNECTION={str(cfg.add_connection).lower()}",
         "-var", f"NETWORKS={json.dumps([{'ssid': net.ssid, 'password': net.password} for net in cfg.networks])}",
         "-var", f"USERNAME={cfg.username}",
         "-var", f"USER_PASSWORD={cfg.user_password}",
-        "-var", f"LIDAR={cfg.lidar}",
+        "-var", f"ROS_ENABLED={str(cfg.ros_enabled).lower()}",
         "-var", f"ROS_DOMAIN_ID={cfg.ros_domain_id}",
         "-var", f"ROS_DISTRO={cfg.ros_distro}",
+        "-var", f"TAILSCALE_ENABLED={str(cfg.tailscale.enabled).lower()}",
+        "-var", f"TAILSCALE_AUTH_KEY={cfg.tailscale.auth_key}",
+        "-var", f"TAILSCALE_USE_HOSTNAME={str(cfg.tailscale.use_hostname).lower()}",
+        "-var", f"LIDAR={cfg.lidar.model}",
         "-var", f"BUILD_SUBDIR={build_subdir.name}",
         "-var", f"SOURCE_IMAGE_PATH={source_image_path}",
         "-var", f"IMAGE_CHECKSUM={expected_checksum}",
@@ -643,109 +729,106 @@ Examples:
   python build.py --config configs/production.toml --verbose
 
 Config File Structure:
-  The [network] section is optional. If included with an SSID, network
-  connection will be added automatically. Remove or comment out the entire
-  [network] section to skip network setup.
-
   See configs/example.toml for a complete example.
+  Robot-specific plugins go in robots/<robot_type>/.
         """
     )
-    
+
     parser.add_argument(
         "--config", "-c",
         type=Path,
         required=True,
         help="Path to TOML configuration file"
     )
-    
+
     parser.add_argument(
         "--packer-file", "-p",
         default="packer_ubuntu_server.json",
         help="Path to Packer configuration file (default: packer_ubuntu_server.json)"
     )
-    
+
     parser.add_argument(
         "--dry-run", "-d",
         action="store_true",
         help="Show configuration without running build"
     )
-    
+
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose output"
     )
-    
+
     parser.add_argument(
         "--yes", "-y",
         action="store_true",
         help="Skip confirmation prompt"
     )
-    
+
     args = parser.parse_args()
-    
+
     try:
         # Load and validate configuration
         cfg = load_config(args.config)
-        
+
         if args.verbose:
             cfg.verbose = True
-        
+
         compute_derived_values(cfg)
         validate_config(cfg)
-        
+
         # Handle network configuration (prompt for missing values if network section exists)
         prompt_missing_network_config(cfg)
-        
+
         # Display configuration
         display_config(cfg)
-        
+
         # Check for dry run
         if args.dry_run:
             print("\nDry run mode - not executing build.")
             sys.exit(0)
-        
+
         # Confirm build
         if not args.yes and not confirm_build():
             print("Aborting operation.")
             sys.exit(0)
-        
+
         print("\nProceeding with the build process...")
-        
+
         # Create build subdirectory
         build_subdir = get_build_subdirectory(cfg)
         build_subdir.mkdir(parents=True, exist_ok=True)
         print(f"Build directory: {build_subdir}")
-        
+
         # Save configuration to build directory (with all defaults)
         save_config_to_build_dir(cfg, build_subdir)
         print(f"Configuration saved to: {build_subdir}/build_config.toml")
-        
+
         # Copy original config file to build directory
         original_config_dest = build_subdir / args.config.name
         shutil.copy2(args.config, original_config_dest)
         print(f"Original config copied to: {original_config_dest}")
-        
+
         # Check output file doesn't exist
         check_output_file(cfg, auto_yes=args.yes)
-        
+
         # Check sudo permissions
         if not check_sudo():
             if not prompt_sudo():
                 raise BuildError("sudo permissions are required")
-        
+
         # Download source image
         source_image_path = download_source_image(cfg)
-        
+
         # Pull Packer image
         pull_packer_image(cfg)
-        
+
         # Run build
         run_packer_build(cfg, args.packer_file, source_image_path)
-        
+
         print("\nBuild completed successfully!")
         print(f"Output files in: {build_subdir}")
-        
+
     except BuildError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

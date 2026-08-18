@@ -1,16 +1,28 @@
-# TurtleBot3 Image Build Configuration
+# Robot Image Build Configuration
 # This is an example configuration file.
 # Copy this file and customise it for your build.
 
 [image]
-name = "tb3"
+name = "my_robot"
 # Version will be auto-detected from git if not specified
 # version = "1.0.0"
 output_directory = "build"
 
-[model]
-# Model type: "waffle" or "burger"
-type = "burger"
+[robot]
+# Robot type identifier (used in filenames and for plugin selection)
+type = "generic"
+# Sub-model (optional, used in filenames)
+# model = ""
+# Hostname prefix for auto-generated hostnames (MAC-based)
+hostname_prefix = "robot"
+# Command to launch the robot (omit for no auto-launch)
+# bringup_command = "ros2 launch my_robot_bringup robot.launch.py"
+
+# Robot-specific component toggles
+# These are passed to robot plugin scripts
+# [robot.components]
+# camera = true
+# opencr = false
 
 [build]
 # Skip compression of the output image
@@ -22,43 +34,44 @@ skip_compression = false
 # If included, network connections will be added automatically.
 # Remove or comment out the entire [[network]] section to skip network setup.
 # Use TOML array syntax (double brackets) for multiple networks.
-[[network]]
-# First WiFi network configuration
+# [[network]]
 # ssid = "YourNetworkSSID"
 # password = "YourNetworkPassword"
 
-# [[network]]
-# Second WiFi network configuration (optional)
-# ssid = "YourSecondNetworkSSID"
-# password = "YourSecondNetworkPassword"
-
 # User section is optional.
-# If not specified, defaults to username "robot" and password "turtlebot3"
+# If not specified, defaults to username "robot" and password "changeme"
 [user]
 # username = "robot"
-# password = "turtlebot3"
+# password = "changeme"
 
-# LIDAR section is optional.
-# If not specified, defaults to "LDS-02"
-# Valid options: LDS-01, LDS-02, LDS-03
-[lidar]
+# LIDAR section is optional (only relevant for robots with LIDAR).
+# [lidar]
 # model = "LDS-02"
 
 # ROS section is optional.
-# If not specified, defaults to domain_id = 0, distro = "humble"
+# Omit this entire section to build an image WITHOUT ROS2.
+# When present, defaults to domain_id = 0, distro = "humble"
 # Valid range for domain_id: 0-101
 # Valid distro values: humble (22.04), iron (22.04), jazzy (24.04), rolling (24.04)
 [ros]
 # domain_id = 0
 # distro = "humble"
 
-[source]
-# Ubuntu image source URL
-# Auto-derived from ros.distro if not specified (uses the latest known Ubuntu
-# patch release for the selected distro, e.g. 22.04.5 for humble, 24.04.4 for jazzy).
-# Uncomment and set explicitly to override auto-detection:
-# url = "https://cdimage.ubuntu.com/releases/22.04.5/release/ubuntu-22.04.5-preinstalled-server-arm64+raspi.img.xz"
-# checksum_url = "https://cdimage.ubuntu.com/releases/22.04.5/release/SHA256SUMS"
+# Tailscale VPN section (optional).
+# Tailscale is installed by default. Set enabled = false to skip.
+# Provide an auth_key for automatic authorization on first boot.
+# Generate auth keys at https://login.tailscale.com/admin/settings/keys
+[tailscale]
+enabled = true
+# auth_key = "tskey-auth-..."
+# use_hostname = true  # Use the robot's hostname as its Tailscale hostname
+
+# Source image section.
+# Required when [ros] section is omitted (no distro to auto-derive from).
+# When [ros] is present, the Ubuntu source is auto-derived from the distro.
+# [source]
+# url = "https://cdimage.ubuntu.com/releases/24.04.3/release/ubuntu-24.04.3-preinstalled-server-arm64+raspi.img.xz"
+# checksum_url = "https://cdimage.ubuntu.com/releases/24.04.3/release/SHA256SUMS"
 
 [image.size]
 # Target image size (e.g., "10G", "8G", etc.)
