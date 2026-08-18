@@ -10,7 +10,8 @@ USERNAME="${USERNAME:-robot}"
 # Write model config for runtime scripts
 echo "$ROBOT_MODEL" > /etc/robot-config/robot_model
 
-# Install TurtleBot3 ROS packages
+# Install the additional TurtleBot3-specific ROS packages (common packages
+# such as git are installed globally by scripts/10_packages.sh).
 _TB3_PKGS="python3-argcomplete python3-colcon-common-extensions libboost-system-dev build-essential ros-${ROS_DISTRO}-hls-lfcd-lds-driver ros-${ROS_DISTRO}-turtlebot3-msgs ros-${ROS_DISTRO}-dynamixel-sdk libudev-dev"
 apt-get --simulate install ${_TB3_PKGS} > /dev/null 2>&1
 apt-get -y install ${_TB3_PKGS}

@@ -34,6 +34,11 @@ skip_compression = false
 # bluetooth, avahi-daemon, packagekit. Wifi services are NOT disabled.
 # To keep a default, remove it from this list; set an empty list to keep all.
 # disabled_services = []
+# Extra packages installed on every robot image (before any robot-specific
+# packages). Defaults: git, curl, ssh, nano, ffmpeg, openssh-server, locales,
+# pip, software-properties-common, meson, ninja-build.
+# Robot plugins only install their additional packages.
+# common_packages = []
 
 # Network section is optional.
 # If included, network connections will be added automatically.

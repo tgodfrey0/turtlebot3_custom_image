@@ -110,6 +110,22 @@ DEFAULT_DISABLED_SERVICES = [
     "packagekit",
 ]
 
+# Common packages installed on every robot image. Can be overridden per-build
+# via [build] common_packages.
+DEFAULT_COMMON_PACKAGES = [
+    "git",
+    "curl",
+    "ssh",
+    "nano",
+    "ffmpeg",
+    "openssh-server",
+    "locales",
+    "pip",
+    "software-properties-common",
+    "meson",
+    "ninja-build",
+]
+
 @dataclass
 class BuildConfig:
     """Configuration for the build process."""
@@ -124,6 +140,10 @@ class BuildConfig:
     # Systemd services to disable on the built image
     disabled_services: List[str] = field(
         default_factory=lambda: list(DEFAULT_DISABLED_SERVICES)
+    )
+    # Common packages installed on every robot image
+    common_packages: List[str] = field(
+        default_factory=lambda: list(DEFAULT_COMMON_PACKAGES)
     )
 
     # Network settings
@@ -225,6 +245,11 @@ def load_config(config_path: Path) -> BuildConfig:
         if "disabled_services" in build:
             cfg.disabled_services = [
                 s.strip() for s in build["disabled_services"]
+                if s and s.strip()
+            ]
+        if "common_packages" in build:
+            cfg.common_packages = [
+                s.strip() for s in build["common_packages"]
                 if s and s.strip()
             ]
 
@@ -447,7 +472,8 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
         "build": {
             "skip_compression": cfg.skip_compression,
             "skip_sparse": cfg.skip_sparse,
-            "disabled_services": cfg.disabled_services
+            "disabled_services": cfg.disabled_services,
+            "common_packages": cfg.common_packages
         },
         "network": [
             {"ssid": net.ssid, "password": net.password}
@@ -555,6 +581,7 @@ USER_PASSWORD: {user_password_display}
 SKIP_COMPRESSION: {cfg.skip_compression}
 SKIP_SPARSE: {cfg.skip_sparse}
 DISABLED_SERVICES: {', '.join(cfg.disabled_services) if cfg.disabled_services else '(none)'}
+COMMON_PACKAGES: {', '.join(cfg.common_packages) if cfg.common_packages else '(none)'}
 NETWORK: {network_status}{network_info}
 OUTPUT_DIR: {cfg.output_directory}
 BUILD_SUBDIR: {build_subdir}
@@ -769,6 +796,7 @@ def generate_packer_template(cfg: BuildConfig) -> dict:
         f"TAILSCALE_USE_HOSTNAME={str(cfg.tailscale.use_hostname).lower()}",
         f"LIDAR={cfg.lidar.model}",
         f"DISABLED_SERVICES={json.dumps(cfg.disabled_services)}",
+        f"COMMON_PACKAGES={' '.join(cfg.common_packages)}",
     ]
 
     template = {
