@@ -647,9 +647,250 @@ def pull_packer_image(cfg: BuildConfig) -> None:
         raise
 
 
-def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path) -> None:
+def get_provisioner_scripts(cfg: BuildConfig) -> List[str]:
+    """Determine which provisioner scripts to include based on config."""
+    scripts = [
+        "scripts/01_set_dns.sh",
+        "scripts/10_packages.sh",
+        "scripts/15_install_tailscale.sh",
+        "scripts/20_setup_hostname_service.sh",
+        "scripts/30_general_system_setup.sh",
+    ]
+
+    if cfg.ros_enabled:
+        scripts.append("scripts/40_install_ros.sh")
+
+    scripts.append("scripts/50_robot_setup.sh")
+
+    camera_enabled = cfg.robot.components.get("camera", False)
+    if camera_enabled:
+        scripts.append("scripts/70_setup_camera.sh")
+
+    scripts.append("scripts/80_add_connection.sh")
+
+    return scripts
+
+
+def generate_packer_template(cfg: BuildConfig) -> dict:
+    """Generate the Packer template dynamically from config."""
+    build_subdir = get_build_subdirectory(cfg)
+    robot_label = get_robot_label(cfg)
+    scripts = get_provisioner_scripts(cfg)
+
+    provisioner_env = [
+        "DEBIAN_FRONTEND=noninteractive",
+        "NEEDRESTART_MODE=a",
+        f"ROBOT_TYPE={cfg.robot.type}",
+        f"HOSTNAME_PREFIX={cfg.robot.hostname_prefix}",
+        f"ROBOT_COMPONENTS={json.dumps(cfg.robot.components)}",
+        f"ADD_CONNECTION={str(cfg.add_connection).lower()}",
+        f"NETWORKS={json.dumps([{'ssid': net.ssid, 'password': net.password} for net in cfg.networks])}",
+        f"USERNAME={cfg.username}",
+        f"USER_PASSWORD={cfg.user_password}",
+        f"ROS_ENABLED={str(cfg.ros_enabled).lower()}",
+        f"ROS_DOMAIN_ID={cfg.ros_domain_id}",
+        f"ROS_DISTRO={cfg.ros_distro}",
+        f"TAILSCALE_ENABLED={str(cfg.tailscale.enabled).lower()}",
+        f"TAILSCALE_AUTH_KEY={cfg.tailscale.auth_key}",
+        f"TAILSCALE_USE_HOSTNAME={str(cfg.tailscale.use_hostname).lower()}",
+        f"LIDAR={cfg.lidar.model}",
+    ]
+
+    template = {
+        "variables": {
+            "NAME": cfg.name,
+            "VERSION": cfg.computed_version,
+            "SKIP_COMPRESSION": str(cfg.skip_compression).lower(),
+            "SKIP_SPARSE": str(cfg.skip_sparse).lower(),
+            "ROBOT_TYPE": cfg.robot.type,
+            "ROBOT_MODEL": robot_label,
+            "HOSTNAME_PREFIX": cfg.robot.hostname_prefix,
+            "ROBOT_COMPONENTS": json.dumps(cfg.robot.components),
+            "BRINGUP_COMMAND": cfg.robot.bringup_command,
+            "ADD_CONNECTION": str(cfg.add_connection).lower(),
+            "NETWORKS": json.dumps([{'ssid': net.ssid, 'password': net.password} for net in cfg.networks]),
+            "USERNAME": cfg.username,
+            "USER_PASSWORD": cfg.user_password,
+            "ROS_ENABLED": str(cfg.ros_enabled).lower(),
+            "ROS_DOMAIN_ID": str(cfg.ros_domain_id),
+            "ROS_DISTRO": cfg.ros_distro,
+            "TAILSCALE_ENABLED": str(cfg.tailscale.enabled).lower(),
+            "TAILSCALE_AUTH_KEY": cfg.tailscale.auth_key,
+            "TAILSCALE_USE_HOSTNAME": str(cfg.tailscale.use_hostname).lower(),
+            "LIDAR": cfg.lidar.model,
+            "BUILD_SUBDIR": build_subdir.name,
+            "SOURCE_IMAGE_PATH": "",
+            "IMAGE_CHECKSUM": "",
+            "IMAGE_SIZE": cfg.image_size,
+            "BOOT_SIZE": cfg.boot_size,
+        },
+        "builders": [
+            {
+                "type": "arm",
+                "file_urls": ["/build/{{user `SOURCE_IMAGE_PATH`}}"],
+                "file_checksum": "{{user `IMAGE_CHECKSUM`}}",
+                "file_checksum_type": "sha256",
+                "file_target_extension": "xz",
+                "file_unarchive_cmd": ["xz", "--decompress", "$ARCHIVE_PATH"],
+                "image_build_method": "resize",
+                "image_size": "{{user `IMAGE_SIZE`}}",
+                "image_path": f"build/{build_subdir.name}/{cfg.name}-{robot_label}-image-{cfg.computed_version}.img",
+                "image_type": "dos",
+                "image_partitions": [
+                    {
+                        "name": "boot",
+                        "type": "c",
+                        "start_sector": "8192",
+                        "filesystem": "vfat",
+                        "size": "{{user `BOOT_SIZE`}}",
+                        "mountpoint": "/boot",
+                    },
+                    {
+                        "name": "root",
+                        "type": "83",
+                        "start_sector": "526336",
+                        "filesystem": "ext4",
+                        "size": "0",
+                        "mountpoint": "/",
+                    },
+                ],
+                "image_chroot_env": [
+                    "PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+                ],
+                "qemu_binary_source_path": "/usr/bin/qemu-arm-static",
+                "qemu_binary_destination_path": "/usr/bin/qemu-arm-static",
+            }
+        ],
+        "provisioners": [
+            {
+                "type": "shell",
+                "environment_vars": provisioner_env,
+                "scripts": ["scripts/00_setup_user.sh"],
+            },
+            {
+                "type": "shell",
+                "inline": [f"mkdir -p /home/{cfg.username}/setup_scripts/"],
+            },
+            {
+                "type": "file",
+                "source": "files/scripts/",
+                "destination": f"/home/{cfg.username}/setup_scripts",
+            },
+            {
+                "type": "file",
+                "source": "files/services/",
+                "destination": "/etc/systemd/system",
+            },
+        ],
+        "post-processors": [
+            {
+                "type": "shell-local",
+                "inline": _post_processor_inline(cfg),
+            }
+        ],
+    }
+
+    # Copy robot plugin files if the directory exists
+    robot_plugin_dir = Path("robots") / cfg.robot.type
+    if robot_plugin_dir.is_dir():
+        template["provisioners"].append({
+            "type": "file",
+            "source": f"robots/{cfg.robot.type}/",
+            "destination": "/tmp/robot_plugin",
+        })
+
+    # Fixup sed step (replace /home/robot with actual username)
+    template["provisioners"].append({
+        "type": "shell",
+        "environment_vars": [f"USERNAME={cfg.username}"],
+        "inline": [
+            f"find /home/{cfg.username}/setup_scripts /etc/systemd/system -type f -exec sed -i 's|/home/robot|/home/{cfg.username}|g' {{}} +",
+            f"find /home/{cfg.username}/setup_scripts /etc/systemd/system -type f -exec sed -i 's|USERNAME=robot|USERNAME={cfg.username}|g' {{}} +",
+            f"find /home/{cfg.username}/setup_scripts -name '*.sh' -exec chmod +x {{}} +",
+            "chmod +x /tmp/robot_plugin/*.sh 2>/dev/null || true",
+        ],
+    })
+
+    # Main provisioner scripts
+    template["provisioners"].append({
+        "type": "shell",
+        "environment_vars": provisioner_env,
+        "scripts": scripts,
+    })
+
+    # Fix ownership
+    template["provisioners"].append({
+        "type": "shell",
+        "environment_vars": [f"USERNAME={cfg.username}"],
+        "inline": [
+            "echo 'Fixing ownership of files in /home/$USERNAME...'",
+            "chown -R $USERNAME:$USERNAME /home/$USERNAME",
+            "echo 'Ownership fixed successfully.'",
+        ],
+    })
+
+    return template
+
+
+def _post_processor_inline(cfg: BuildConfig) -> List[str]:
+    """Generate the post-processor inline scripts."""
+    build_subdir = get_build_subdirectory(cfg)
+    robot_label = get_robot_label(cfg)
+    img = f"build/{build_subdir.name}/{cfg.name}-{robot_label}-image-{cfg.computed_version}.img"
+
+    return [
+        f'IMG="{img}"',
+        "",
+        'if [ "{{user `SKIP_SPARSE`}}" != "true" ]; then',
+        "    echo 'Sparsifying image for bmaptool compatibility...'",
+        "    if fallocate -d \"$IMG\" 2>/dev/null; then",
+        "        echo 'Sparsified with fallocate -d'",
+        "    else",
+        "        if cp --sparse=always \"$IMG\" \"$IMG.tmp\" 2>/dev/null; then",
+        "            mv \"$IMG.tmp\" \"$IMG\" && echo 'Sparsified with cp --sparse=always'",
+        "        else",
+        "            echo 'Warning: could not sparsify image (fallocate and cp --sparse=both failed)'",
+        "        fi",
+        "    fi",
+        "fi",
+        "",
+        'if [ "{{user `SKIP_SPARSE`}}" != "true" ]; then',
+        "    if ! command -v bmaptool >/dev/null 2>&1; then",
+        "        echo 'Installing bmap-tools...'",
+        "        apt-get update -qq 2>/dev/null && apt-get install -y -qq bmap-tools 2>/dev/null || true",
+        "    fi",
+        "    if command -v bmaptool >/dev/null 2>&1; then",
+        "        echo 'Generating bmap file from sparse image...'",
+        "        if bmaptool create \"$IMG\" > \"$IMG.bmap\" 2>/dev/null; then",
+        "            echo 'Bmap generated:' \"$IMG.bmap\"",
+        "        else",
+        "            echo 'Warning: bmap generation failed'",
+        "        fi",
+        "    else",
+        "        echo 'Warning: bmaptool not available, skipping bmap generation'",
+        "    fi",
+        "fi",
+        "",
+        'if [ "{{user `SKIP_COMPRESSION`}}" != "true" ]; then',
+        "    xz -f -v -T0 \"$IMG\"",
+        "fi",
+        "",
+        'if [ -f "$IMG.bmap" ] && [ "{{user `SKIP_COMPRESSION`}}" != "true" ]; then',
+        '    cp "$IMG.bmap" "$IMG.xz.bmap"',
+        "fi",
+    ]
+
+
+def run_packer_build(cfg: BuildConfig, source_image_path: Path) -> None:
     """Run the Packer build."""
     build_subdir = get_build_subdirectory(cfg)
+
+    # Generate the Packer template
+    template = generate_packer_template(cfg)
+    packer_file = build_subdir / "packer_build.json"
+    with open(packer_file, "w") as f:
+        json.dump(template, f, indent=2)
+    print(f"Generated Packer template: {packer_file}")
 
     # Get the checksum for the source image
     url_path = Path(cfg.source_url)
@@ -668,32 +909,9 @@ def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path
         "-v", f"{os.getcwd()}:/build",
         cfg.packer_builder_image,
         "build",
-        "-var", f"NAME={cfg.name}",
-        "-var", f"VERSION={cfg.computed_version}",
-        "-var", f"SKIP_COMPRESSION={str(cfg.skip_compression).lower()}",
-        "-var", f"SKIP_SPARSE={str(cfg.skip_sparse).lower()}",
-        "-var", f"ROBOT_TYPE={cfg.robot.type}",
-        "-var", f"ROBOT_MODEL={get_robot_label(cfg)}",
-        "-var", f"HOSTNAME_PREFIX={cfg.robot.hostname_prefix}",
-        "-var", f"ROBOT_COMPONENTS={json.dumps(cfg.robot.components)}",
-        "-var", f"BRINGUP_COMMAND={cfg.robot.bringup_command}",
-        "-var", f"ADD_CONNECTION={str(cfg.add_connection).lower()}",
-        "-var", f"NETWORKS={json.dumps([{'ssid': net.ssid, 'password': net.password} for net in cfg.networks])}",
-        "-var", f"USERNAME={cfg.username}",
-        "-var", f"USER_PASSWORD={cfg.user_password}",
-        "-var", f"ROS_ENABLED={str(cfg.ros_enabled).lower()}",
-        "-var", f"ROS_DOMAIN_ID={cfg.ros_domain_id}",
-        "-var", f"ROS_DISTRO={cfg.ros_distro}",
-        "-var", f"TAILSCALE_ENABLED={str(cfg.tailscale.enabled).lower()}",
-        "-var", f"TAILSCALE_AUTH_KEY={cfg.tailscale.auth_key}",
-        "-var", f"TAILSCALE_USE_HOSTNAME={str(cfg.tailscale.use_hostname).lower()}",
-        "-var", f"LIDAR={cfg.lidar.model}",
-        "-var", f"BUILD_SUBDIR={build_subdir.name}",
         "-var", f"SOURCE_IMAGE_PATH={source_image_path}",
         "-var", f"IMAGE_CHECKSUM={expected_checksum}",
-        "-var", f"IMAGE_SIZE={cfg.image_size}",
-        "-var", f"BOOT_SIZE={cfg.boot_size}",
-        packer_file
+        str(packer_file),
     ]
 
     if cfg.verbose:
@@ -731,6 +949,7 @@ Examples:
 Config File Structure:
   See configs/example.toml for a complete example.
   Robot-specific plugins go in robots/<robot_type>/.
+  The Packer template is generated automatically from config.
         """
     )
 
@@ -739,12 +958,6 @@ Config File Structure:
         type=Path,
         required=True,
         help="Path to TOML configuration file"
-    )
-
-    parser.add_argument(
-        "--packer-file", "-p",
-        default="packer_ubuntu_server.json",
-        help="Path to Packer configuration file (default: packer_ubuntu_server.json)"
     )
 
     parser.add_argument(
@@ -824,7 +1037,7 @@ Config File Structure:
         pull_packer_image(cfg)
 
         # Run build
-        run_packer_build(cfg, args.packer_file, source_image_path)
+        run_packer_build(cfg, source_image_path)
 
         print("\nBuild completed successfully!")
         print(f"Output files in: {build_subdir}")
