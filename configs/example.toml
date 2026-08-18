@@ -48,14 +48,21 @@ skip_compression = false
 # [lidar]
 # model = "LDS-02"
 
-# ROS section is optional.
-# Omit this entire section to build an image WITHOUT ROS2.
-# When present, defaults to domain_id = 0, distro = "humble"
+# ROS section.
+# ROS2 is INSTALLED when this section is present.
+# Defaults: domain_id = 0, distro = "humble"
 # Valid range for domain_id: 0-101
 # Valid distro values: humble (22.04), iron (22.04), jazzy (24.04), rolling (24.04)
 [ros]
-# domain_id = 0
-# distro = "humble"
+domain_id = 0
+distro = "humble"
+
+# To build WITHOUT ROS2, comment out the ENTIRE [ros] section above and
+# provide an explicit [source] section (the Ubuntu image URL can no longer
+# be auto-derived from a ROS distro). Example:
+# [source]
+# url = "https://cdimage.ubuntu.com/releases/24.04.3/release/ubuntu-24.04.3-preinstalled-server-arm64+raspi.img.xz"
+# checksum_url = "https://cdimage.ubuntu.com/releases/24.04.3/release/SHA256SUMS"
 
 # Tailscale VPN section (optional).
 # Tailscale is installed by default. Set enabled = false to skip.
@@ -67,8 +74,9 @@ enabled = true
 # use_hostname = true  # Use the robot's hostname as its Tailscale hostname
 
 # Source image section.
-# Required when [ros] section is omitted (no distro to auto-derive from).
 # When [ros] is present, the Ubuntu source is auto-derived from the distro.
+# When [ros] is omitted, you MUST provide this section.
+# See the comment above [ros] for details.
 # [source]
 # url = "https://cdimage.ubuntu.com/releases/24.04.3/release/ubuntu-24.04.3-preinstalled-server-arm64+raspi.img.xz"
 # checksum_url = "https://cdimage.ubuntu.com/releases/24.04.3/release/SHA256SUMS"
