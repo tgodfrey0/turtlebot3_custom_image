@@ -132,6 +132,9 @@ class BuildConfig:
     # Source image
     source_url: str = DEFAULT_UBUNTU_SOURCE_URL
     checksum_url: str = DEFAULT_UBUNTU_CHECKSUM_URL
+    # Explicit Ubuntu server release version (e.g. "24.04.3"). When set,
+    # overrides the ROS-distro-derived version. Optional.
+    source_version: str = ""
 
     # Image size
     image_size: str = "10G"
@@ -148,6 +151,7 @@ class BuildConfig:
 
     # Internal tracking (not user-configurable)
     _source_explicit: bool = field(default=False, init=False)
+    _url_explicit: bool = field(default=False, init=False)
 
 
 class BuildError(Exception):
@@ -266,8 +270,12 @@ def load_config(config_path: Path) -> BuildConfig:
     if "source" in data:
         cfg._source_explicit = True
         src = data["source"]
-        cfg.source_url = src.get("url", cfg.source_url)
-        cfg.checksum_url = src.get("checksum_url", cfg.checksum_url)
+        cfg.source_version = src.get("version", cfg.source_version)
+        if "url" in src:
+            cfg._url_explicit = True
+            cfg.source_url = src.get("url", cfg.source_url)
+        if "checksum_url" in src:
+            cfg.checksum_url = src.get("checksum_url", cfg.checksum_url)
 
     # Parse advanced section
     if "advanced" in data:
@@ -343,20 +351,27 @@ def compute_derived_values(cfg: BuildConfig) -> None:
     # Get version
     cfg.computed_version = cfg.version or get_git_version()
 
-    # Compute Ubuntu version and source URLs from ROS distro (if ROS enabled)
-    if cfg.ros_enabled:
-        cfg.ubuntu_version = ROS_DISTRO_UBUNTU_MAP.get(cfg.ros_distro, "22.04")
+    # Prefer an explicit Ubuntu release version if provided
+    ubuntu_release = cfg.source_version or ""
+
+    # Auto-derive Ubuntu version from ROS distro (if ROS enabled)
+    if cfg.ros_enabled and not ubuntu_release:
         ubuntu_release = ROS_DISTRO_UBUNTU_RELEASE_MAP.get(cfg.ros_distro, "22.04.5")
-        if not cfg._source_explicit:
-            cfg.source_url = (
-                f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/"
-                f"ubuntu-{ubuntu_release}-preinstalled-server-arm64+raspi.img.xz"
-            )
-            cfg.checksum_url = (
-                f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/SHA256SUMS"
-            )
+        cfg.ubuntu_version = ROS_DISTRO_UBUNTU_MAP.get(cfg.ros_distro, "22.04")
+    elif ubuntu_release:
+        cfg.ubuntu_version = ubuntu_release
     else:
         cfg.ubuntu_version = "custom"
+
+    # Build source URLs from the selected release unless a URL was explicitly given
+    if not cfg._url_explicit:
+        cfg.source_url = (
+            f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/"
+            f"ubuntu-{ubuntu_release}-preinstalled-server-arm64+raspi.img.xz"
+        )
+        cfg.checksum_url = (
+            f"https://cdimage.ubuntu.com/releases/{ubuntu_release}/release/SHA256SUMS"
+        )
 
 
 def prompt_missing_network_config(cfg: BuildConfig) -> None:
@@ -434,6 +449,7 @@ def save_config_to_build_dir(cfg: BuildConfig, build_dir: Path) -> None:
             "use_hostname": cfg.tailscale.use_hostname,
         },
         "source": {
+            "version": cfg.source_version,
             "url": cfg.source_url,
             "checksum_url": cfg.checksum_url
         },

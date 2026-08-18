@@ -75,9 +75,11 @@ enabled = true
 
 # Source image section.
 # When [ros] is present, the Ubuntu source is auto-derived from the distro.
-# When [ros] is omitted, you MUST provide this section.
+# Set `version` to explicitly choose the Ubuntu server release (e.g. "24.04.3").
+# When [ros] is omitted, you MUST provide either `version` or a full `url`.
 # See the comment above [ros] for details.
 # [source]
+# version = "24.04.3"
 # url = "https://cdimage.ubuntu.com/releases/24.04.3/release/ubuntu-24.04.3-preinstalled-server-arm64+raspi.img.xz"
 # checksum_url = "https://cdimage.ubuntu.com/releases/24.04.3/release/SHA256SUMS"
 
