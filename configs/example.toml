@@ -38,6 +38,8 @@ skip_compression = false
 # packages). Defaults: git, curl, ssh, nano, ffmpeg, openssh-server, locales,
 # pip, software-properties-common, meson, ninja-build.
 # Robot plugins only install their additional packages.
+# Rust (rustup) and pixi are installed separately via their official
+# installers, not through this apt list.
 # common_packages = []
 
 # Network section is optional.
