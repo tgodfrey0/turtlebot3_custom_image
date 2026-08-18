@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux -o pipefail
 
-USERNAME="${USERNAME}"
+read USERNAME < /etc/turtlebot3-user
 
 if [[ -f /home/${USERNAME}/.setup_camera ]]; then
   echo -e '#start_x=1\n#gpu_mem=128' >> /boot/firmware/config.txt

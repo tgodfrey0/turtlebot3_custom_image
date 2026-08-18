@@ -48,4 +48,5 @@ if [[ "$ADD_CONNECTION" == "true" ]] && [[ -n "${NETWORKS:-}" ]]; then
     chown -R $USERNAME:$USERNAME /home/$USERNAME/.config
 fi
 
+echo "$USERNAME" > /etc/turtlebot3-user
 echo "User '$USERNAME' created with full admin privileges and permissions for ROS, SSH, and FTP."
