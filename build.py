@@ -729,8 +729,6 @@ def get_provisioner_scripts(cfg: BuildConfig) -> List[str]:
     scripts = [
         "scripts/01_set_dns.sh",
         "scripts/10_packages.sh",
-        "scripts/12_install_pixi_rust.sh",
-        "scripts/15_install_tailscale.sh",
         "scripts/20_setup_hostname_service.sh",
         "scripts/30_general_system_setup.sh",
     ]
