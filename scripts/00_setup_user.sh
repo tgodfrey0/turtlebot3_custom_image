@@ -48,5 +48,11 @@ if [[ "$ADD_CONNECTION" == "true" ]] && [[ -n "${NETWORKS:-}" ]]; then
     chown -R $USERNAME:$USERNAME /home/$USERNAME/.config
 fi
 
-echo "$USERNAME" > /etc/turtlebot3-user
+echo "$USERNAME" > /etc/robot-user
+
+# Write robot config for runtime scripts
+mkdir -p /etc/robot-config
+echo "${ROBOT_TYPE:-generic}" > /etc/robot-config/robot_type
+echo "${HOSTNAME_PREFIX:-robot}" > /etc/robot-config/hostname_prefix
+
 echo "User '$USERNAME' created with full admin privileges and permissions for ROS, SSH, and FTP."

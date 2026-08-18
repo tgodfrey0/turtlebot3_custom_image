@@ -1,6 +1,12 @@
 #!/bin/bash
 set -eux -o pipefail
 
+# Skip ROS installation if disabled
+if [ "${ROS_ENABLED:-true}" != "true" ]; then
+    echo -e "\e[1;33mROS installation skipped (ROS_ENABLED=false)\e[0m"
+    exit 0
+fi
+
 echo -e "\e[1;32mInstalling ROS ${ROS_DISTRO}\e[0m"
 
 locale-gen en_GB en_GB.UTF-8
