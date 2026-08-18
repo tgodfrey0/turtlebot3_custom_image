@@ -19,7 +19,7 @@ unset _CAM_PKGS
 apt-get --simulate install ros-${ROS_DISTRO}-camera-ros > /dev/null 2>&1
 apt-get install -y ros-${ROS_DISTRO}-camera-ros
 
-mkdir -p /home/$USERNAME/turtlebot3_ws/src && cd /home/$USERNAME/turtlebot3_ws/src
+mkdir -p /home/$USERNAME/colcon_ws/src && cd /home/$USERNAME/colcon_ws/src
 git clone -b v0.5.2 https://github.com/raspberrypi/libcamera.git
 cd libcamera
 meson setup build --buildtype=release -Dpipelines=rpi/vc4,rpi/pisp -Dipas=rpi/vc4,rpi/pisp -Dv4l2=true -Dgstreamer=enabled -Dtest=false -Dlc-compliance=disabled -Dcam=disabled -Dqcam=disabled -Ddocumentation=disabled -Dpycamera=enabled

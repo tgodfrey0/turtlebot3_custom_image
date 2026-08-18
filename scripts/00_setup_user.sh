@@ -54,5 +54,6 @@ echo "$USERNAME" > /etc/robot-user
 mkdir -p /etc/robot-config
 echo "${ROBOT_TYPE:-generic}" > /etc/robot-config/robot_type
 echo "${HOSTNAME_PREFIX:-robot}" > /etc/robot-config/hostname_prefix
+echo "${LIDAR:-}" > /etc/robot-config/lidar_model
 
 echo "User '$USERNAME' created with full admin privileges and permissions for ROS, SSH, and FTP."
