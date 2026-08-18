@@ -136,8 +136,8 @@ class BuildConfig:
     # overrides the ROS-distro-derived version. Optional.
     source_version: str = ""
 
-    # Image size
-    image_size: str = "10G"
+    # Image size ("auto" = as small as the source image allows)
+    image_size: str = "auto"
     boot_size: str = "256M"
 
     # Advanced options
@@ -912,9 +912,66 @@ def _post_processor_inline(cfg: BuildConfig) -> List[str]:
     ]
 
 
+def _format_size(num_bytes: int) -> str:
+    """Format a byte count as a Packer-compatible size string."""
+    for unit in ["", "K", "M", "G", "T"]:
+        if num_bytes < 1024 or unit == "T":
+            return f"{int(num_bytes)}{unit}" if unit else f"{num_bytes}B"
+        num_bytes /= 1024
+    return f"{int(num_bytes)}T"
+
+
+def resolve_image_size(cfg: BuildConfig, source_image_path: Path) -> None:
+    """Resolve 'auto' image_size to the source image's uncompressed size.
+
+    Packer's 'resize' build method grows the final partition to fill
+    IMAGE_SIZE. Setting IMAGE_SIZE to the source image's full size means the
+    output is exactly as large as the base image — i.e. 'as small as possible'
+    without shrinking partitions. A user-provided explicit size is left as-is.
+    """
+    if (cfg.image_size or "").lower() != "auto":
+        return
+
+    src = Path(str(source_image_path))
+    if not src.exists():
+        raise BuildError(f"Cannot compute auto image size: source image not found: {src}")
+
+    try:
+        # xz --robot --list emits machine-readable 'totals' lines:
+        #   totals <streams> <blocks> <compressed> <uncompressed> <ratio> <check> <pad>
+        out = subprocess.run(
+            ["xz", "--robot", "--list", str(src)],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        size_bytes = None
+        for line in out.strip().splitlines():
+            if line.startswith("totals\t"):
+                fields = line.rstrip("\n").split("\t")
+                if len(fields) >= 5:
+                    size_bytes = int(fields[4])
+                    break
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: could not read source image size ({e}); using file size")
+        size_bytes = src.stat().st_size
+
+    if size_bytes is None:
+        size_bytes = src.stat().st_size
+
+    # Packer needs the disk to be at least the source size; keep minimal with
+    # a small slop to avoid appearing exactly full.
+    size_with_slop = int(size_bytes * 1.01) + 64 * 1024 * 1024
+    cfg.image_size = _format_size(size_with_slop)
+    print(f"Image size: auto -> {cfg.image_size} (from uncompressed source {_format_size(size_bytes)})")
+
+
 def run_packer_build(cfg: BuildConfig, source_image_path: Path) -> None:
     """Run the Packer build."""
     build_subdir = get_build_subdirectory(cfg)
+
+    # Resolve automatic image size from the source image
+    resolve_image_size(cfg, source_image_path)
 
     # Generate the Packer template
     template = generate_packer_template(cfg)
