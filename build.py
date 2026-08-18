@@ -251,6 +251,17 @@ def load_config(config_path: Path) -> BuildConfig:
         cfg.tailscale.auth_key = ts.get("auth_key", cfg.tailscale.auth_key)
         cfg.tailscale.use_hostname = ts.get("use_hostname", cfg.tailscale.use_hostname)
 
+    # TAILSCALE_AUTH_KEY env var takes precedence over config value.
+    # This lets users avoid ever putting a key in a committed config file.
+    env_auth_key = os.environ.get("TAILSCALE_AUTH_KEY", "")
+    if env_auth_key:
+        if cfg.tailscale.auth_key and cfg.tailscale.auth_key != env_auth_key:
+            print(
+                "Warning: TAILSCALE_AUTH_KEY env var overrides auth_key from config.",
+                file=sys.stderr,
+            )
+        cfg.tailscale.auth_key = env_auth_key
+
     # Parse source section
     if "source" in data:
         cfg._source_explicit = True
@@ -693,7 +704,7 @@ def generate_packer_template(cfg: BuildConfig) -> dict:
         f"ROS_DOMAIN_ID={cfg.ros_domain_id}",
         f"ROS_DISTRO={cfg.ros_distro}",
         f"TAILSCALE_ENABLED={str(cfg.tailscale.enabled).lower()}",
-        f"TAILSCALE_AUTH_KEY={cfg.tailscale.auth_key}",
+        "TAILSCALE_AUTH_KEY={{user `TAILSCALE_AUTH_KEY`}}",
         f"TAILSCALE_USE_HOSTNAME={str(cfg.tailscale.use_hostname).lower()}",
         f"LIDAR={cfg.lidar.model}",
     ]
@@ -717,7 +728,9 @@ def generate_packer_template(cfg: BuildConfig) -> dict:
             "ROS_DOMAIN_ID": str(cfg.ros_domain_id),
             "ROS_DISTRO": cfg.ros_distro,
             "TAILSCALE_ENABLED": str(cfg.tailscale.enabled).lower(),
-            "TAILSCALE_AUTH_KEY": cfg.tailscale.auth_key,
+            # Intentionally empty in the on-disk template; the real key is
+            # injected at runtime via -var to avoid persisting secrets.
+            "TAILSCALE_AUTH_KEY": "",
             "TAILSCALE_USE_HOSTNAME": str(cfg.tailscale.use_hostname).lower(),
             "LIDAR": cfg.lidar.model,
             "BUILD_SUBDIR": build_subdir.name,
@@ -913,11 +926,17 @@ def run_packer_build(cfg: BuildConfig, source_image_path: Path) -> None:
         "build",
         "-var", f"SOURCE_IMAGE_PATH={source_image_path}",
         "-var", f"IMAGE_CHECKSUM={expected_checksum}",
+        "-var", f"TAILSCALE_AUTH_KEY={cfg.tailscale.auth_key}",
         str(packer_file),
     ]
 
     if cfg.verbose:
-        print(f"Running command: {' '.join(cmd)}")
+        # Redact the Tailscale auth key from verbose output
+        verbose_cmd = [
+            arg.replace(f"TAILSCALE_AUTH_KEY={cfg.tailscale.auth_key}", "TAILSCALE_AUTH_KEY=<redacted>")
+            for arg in cmd
+        ]
+        print(f"Running command: {' '.join(verbose_cmd)}")
 
     process = subprocess.Popen(cmd, preexec_fn=os.setpgrp)
     try:

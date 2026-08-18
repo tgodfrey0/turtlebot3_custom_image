@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Blocks commits that contain a Tailscale auth key (tskey-...).
+# Install with: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+# Tailscale auth keys look like: tskey-auth-<random> or tskey-<random>
+PATTERN='tskey-[A-Za-z0-9_-]{10,}'
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$STAGED" ]; then
+    exit 0
+fi
+
+for FILE in $STAGED; do
+    if grep -qE "$PATTERN" "$FILE" 2>/dev/null; then
+        echo "ERROR: Possible Tailscale auth key detected in staged file: $FILE"
+        echo "auth keys look like 'tskey-...'. Move it out of tracked files."
+        echo
+        echo "Recommendation: use the TAILSCALE_AUTH_KEY environment variable"
+        echo "when running build.py instead of storing keys in config files:"
+        echo "  TAILSCALE_AUTH_KEY=tskey-... python build.py --config ..."
+        exit 1
+    fi
+done
+
+exit 0

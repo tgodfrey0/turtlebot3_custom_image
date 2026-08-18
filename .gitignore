@@ -88,3 +88,6 @@ __pycache__/
 configs/
 configs/*.toml
 !configs/example.toml
+
+# Environment files (secrets)
+.env
