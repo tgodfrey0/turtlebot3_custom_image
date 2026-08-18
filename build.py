@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-TurtleBot3 Image Builder
+Robot Image Builder
 
-A Python-based build system for creating custom TurtleBot3 Ubuntu images.
+A Python-based build system for creating custom robot Ubuntu images.
 Configuration is managed through TOML config files instead of CLI arguments.
 
 Usage:
@@ -626,7 +626,7 @@ def run_packer_build(cfg: BuildConfig, packer_file: str, source_image_path: Path
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build TurtleBot3 custom Ubuntu images using TOML configuration files.",
+        description="Build custom robot Ubuntu images using TOML configuration files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
