@@ -21,6 +21,7 @@ while [[ $# -gt 0 ]]; do
     --authkey) TAILSCALE_AUTHKEY_VAL="$2"; shift 2;;
     --hostname) HOSTNAME_PREFIX_VAL="$2"; shift 2;;
     --image-name) IMAGE_NAME_VAL="$2"; shift 2;;
+    --robot-type) ROBOT_TYPE_VAL="$2"; shift 2;;
     --robot-user) ROBOT_USER_VAL="$2"; shift 2;;
     --robot-pass) ROBOT_PASS_VAL="$2"; shift 2;;
     --tailscale-enabled) TAILSCALE_ENABLED_VAL="$2"; shift 2;;
@@ -28,6 +29,12 @@ while [[ $# -gt 0 ]]; do
     --mavlink-enabled) MAVLINK_ENABLED_VAL="$2"; shift 2;;
     --camera-enabled) CAMERA_SUPPORT_VAL="$2"; shift 2;;
     --opencr-enabled) OPENCR_SUPPORT_VAL="$2"; shift 2;;
+    --wifi-ssid-0) WIFI_SSID_0_VAL="$2"; shift 2;;
+    --wifi-pass-0) WIFI_PASS_0_VAL="$2"; shift 2;;
+    --wifi-ssid-1) WIFI_SSID_1_VAL="$2"; shift 2;;
+    --wifi-pass-1) WIFI_PASS_1_VAL="$2"; shift 2;;
+    --wifi-ssid-2) WIFI_SSID_2_VAL="$2"; shift 2;;
+    --wifi-pass-2) WIFI_PASS_2_VAL="$2"; shift 2;;
     --outdir) OUTPUT_ROOT="$2"; shift 2;;
     --no-build) NO_BUILD=1; shift 1;;
     --dry-run) DRY_RUN=1; shift 1;;
@@ -62,6 +69,12 @@ set_kv() {
 [ -n "${TAILSCALE_AUTHKEY_VAL:-}" ] && set_kv TAILSCALE_AUTHKEY "${TAILSCALE_AUTHKEY_VAL}"
 [ -n "${HOSTNAME_PREFIX_VAL:-}" ] && set_kv HOSTNAME_PREFIX "${HOSTNAME_PREFIX_VAL}"
 [ -n "${IMAGE_NAME_VAL:-}" ] && set_kv IMAGE_NAME "${IMAGE_NAME_VAL}"
+# ROBOT_TYPE: prefer explicit value, else use PROFILE
+if [ -n "${ROBOT_TYPE_VAL:-}" ]; then
+  set_kv ROBOT_TYPE "${ROBOT_TYPE_VAL}"
+else
+  set_kv ROBOT_TYPE "${PROFILE}"
+fi
 [ -n "${ROBOT_USER_VAL:-}" ] && set_kv ROBOT_USER "${ROBOT_USER_VAL}"
 [ -n "${ROBOT_PASS_VAL:-}" ] && set_kv ROBOT_PASS "${ROBOT_PASS_VAL}"
 [ -n "${TAILSCALE_ENABLED_VAL:-}" ] && set_kv TAILSCALE_ENABLED "${TAILSCALE_ENABLED_VAL}"
@@ -69,6 +82,13 @@ set_kv() {
 [ -n "${MAVLINK_ENABLED_VAL:-}" ] && set_kv MAVLINK_ENABLED "${MAVLINK_ENABLED_VAL}"
 [ -n "${CAMERA_SUPPORT_VAL:-}" ] && set_kv CAMERA_SUPPORT "${CAMERA_SUPPORT_VAL}"
 [ -n "${OPENCR_SUPPORT_VAL:-}" ] && set_kv OPENCR_SUPPORT "${OPENCR_SUPPORT_VAL}"
+# WiFi settings
+[ -n "${WIFI_SSID_0_VAL:-}" ] && set_kv WIFI_SSID_0 "${WIFI_SSID_0_VAL}"
+[ -n "${WIFI_PASS_0_VAL:-}" ] && set_kv WIFI_PASS_0 "${WIFI_PASS_0_VAL}"
+[ -n "${WIFI_SSID_1_VAL:-}" ] && set_kv WIFI_SSID_1 "${WIFI_SSID_1_VAL}"
+[ -n "${WIFI_PASS_1_VAL:-}" ] && set_kv WIFI_PASS_1 "${WIFI_PASS_1_VAL}"
+[ -n "${WIFI_SSID_2_VAL:-}" ] && set_kv WIFI_SSID_2 "${WIFI_SSID_2_VAL}"
+[ -n "${WIFI_PASS_2_VAL:-}" ] && set_kv WIFI_PASS_2 "${WIFI_PASS_2_VAL}"
 
 # log the generated conf location
 echo "Generated ${LOCAL_CONF} (profile=${PROFILE})"
@@ -91,12 +111,9 @@ get_kv() {
 }
 
 write_summary() {
-  SUMMARY_DIR="${TOPDIR}/build-summaries"
-  mkdir -p "${SUMMARY_DIR}"
   TS=$(date -u +"%Y%m%dT%H%M%SZ")
-  # include a short git hash to uniquely tag the build artifacts when available
+  # include a short git hash for traceability (kept in summary content)
   GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "no-git")
-  OUTFILE="${SUMMARY_DIR}/${TS}-${PROFILE}-${MACHINE_VAL:-${MACHINE}}-${GIT_HASH}.txt"
 
   IMAGE_NAME_VAL=$(get_kv IMAGE_NAME)
   ROBOT_USER_VAL=$(get_kv ROBOT_USER)
@@ -118,31 +135,18 @@ write_summary() {
     fi
   }
 
-  {
-    echo "timestamp: ${TS}"
-    echo "profile: ${PROFILE}"
-    echo "machine: ${MACHINE_VAL:-${MACHINE}}"
-    echo "image_name: ${IMAGE_NAME_VAL}"
-    echo "robot_type: ${ROBOT_TYPE_VAL}"
-    echo "robot_user: ${ROBOT_USER_VAL}"
-    echo "robot_pass: $(mask "${ROBOT_PASS_VAL}")"
-    echo "hostname_prefix: ${HOSTNAME_PREFIX_VAL}"
-    echo "tailscale_enabled: ${TAILSCALE_ENABLED_VAL}"
-    echo "ros_enabled: ${ROS_ENABLED_VAL}"
-    echo "mavlink_enabled: ${MAVLINK_ENABLED_VAL}"
-    echo "camera_support: ${CAMERA_SUPPORT_VAL}"
-    echo "opencr_support: ${OPENCR_SUPPORT_VAL}"
-    echo "kas_command: kas build configs/kas/${PROFILE}.yml"
-
-    # attempt to list generated images (common extensions)
-    printf "\nfound_images:\n"
-    find . -path "*/tmp/deploy/images/*/*.{wic,img,zip}" -type f -mmin -120 -print 2>/dev/null || true
-  } > "${OUTFILE}"
-
-  echo "Wrote build summary to ${OUTFILE}"
-
   # For each generated image, copy artifacts into OUTPUT_ROOT/<image_name_or_basename>/
   IMAGES=$(find . -path "*/tmp/deploy/images/*/*.{wic,img,zip}" -type f -mmin -120 -print 2>/dev/null || true)
+  if [[ -z "${IMAGES}" ]]; then
+    # no images found; still write a summary into OUTPUT_ROOT/_no_image_
+    target_dir="${OUTPUT_ROOT}/_no_image_"
+    mkdir -p "${target_dir}"
+    OUTFILE="${target_dir}/image-parameter_summary"
+  else
+    OUTFILE=""
+  fi
+
+  # process images and create per-image output dirs
   if [[ -n "${IMAGES}" ]]; then
     while IFS= read -r img; do
       img_dir=$(dirname "${img}")
@@ -154,8 +158,7 @@ write_summary() {
       else
         dir_name="${base_noext}"
       fi
-      # append git hash to target dir for unique builds
-      target_dir="${OUTPUT_ROOT}/${dir_name}-${GIT_HASH}"
+      target_dir="${OUTPUT_ROOT}/${dir_name}"
       mkdir -p "${target_dir}"
 
       # copy the main image as 'image' (strip extension)
@@ -168,10 +171,53 @@ write_summary() {
         fi
       done
 
-      # write parameter summary file
-      cp -f "${OUTFILE}" "${target_dir}/image-parameter_summary"
+      # write parameter summary file inside target dir
+      OUTFILE="${target_dir}/image-parameter_summary"
+      {
+        echo "timestamp: ${TS}"
+        echo "profile: ${PROFILE}"
+        echo "machine: ${MACHINE_VAL:-${MACHINE}}"
+        echo "image_name: ${IMAGE_NAME_VAL}"
+        echo "robot_type: ${ROBOT_TYPE_VAL}"
+        echo "robot_user: ${ROBOT_USER_VAL}"
+        echo "robot_pass: $(mask "${ROBOT_PASS_VAL}")"
+        echo "hostname_prefix: ${HOSTNAME_PREFIX_VAL}"
+        echo "tailscale_enabled: ${TAILSCALE_ENABLED_VAL}"
+        echo "ros_enabled: ${ROS_ENABLED_VAL}"
+        echo "mavlink_enabled: ${MAVLINK_ENABLED_VAL}"
+        echo "camera_support: ${CAMERA_SUPPORT_VAL}"
+        echo "opencr_support: ${OPENCR_SUPPORT_VAL}"
+        echo "kas_command: kas build configs/kas/${PROFILE}.yml"
+        echo "git_hash: ${GIT_HASH}"
+
+        # list generated images related to this base
+        printf "\nfound_images:\n"
+        find "${img_dir}" -maxdepth 1 -type f -name "${base_noext}*" -print || true
+      } > "${OUTFILE}"
+
       echo "Created package: ${target_dir}/ (image + artifacts + image-parameter_summary)"
     done <<< "${IMAGES}"
+  else
+    # write a minimal summary when no images were created
+    {
+      echo "timestamp: ${TS}"
+      echo "profile: ${PROFILE}"
+      echo "machine: ${MACHINE_VAL:-${MACHINE}}"
+      echo "image_name: ${IMAGE_NAME_VAL}"
+      echo "robot_type: ${ROBOT_TYPE_VAL}"
+      echo "robot_user: ${ROBOT_USER_VAL}"
+      echo "robot_pass: $(mask "${ROBOT_PASS_VAL}")"
+      echo "hostname_prefix: ${HOSTNAME_PREFIX_VAL}"
+      echo "tailscale_enabled: ${TAILSCALE_ENABLED_VAL}"
+      echo "ros_enabled: ${ROS_ENABLED_VAL}"
+      echo "mavlink_enabled: ${MAVLINK_ENABLED_VAL}"
+      echo "camera_support: ${CAMERA_SUPPORT_VAL}"
+      echo "opencr_support: ${OPENCR_SUPPORT_VAL}"
+      echo "kas_command: kas build configs/kas/${PROFILE}.yml"
+      echo "git_hash: ${GIT_HASH}"
+      printf "\nfound_images:\n"
+    } > "${OUTFILE}"
+    echo "Wrote build summary to ${OUTFILE}"
   fi
 }
 
