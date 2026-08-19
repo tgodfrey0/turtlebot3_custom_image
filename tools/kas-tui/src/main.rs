@@ -334,7 +334,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             // bottom output area is chunks[1] (full width)
             let out_lines: Vec<Span> = app.output.iter().rev().take(chunks[1].height as usize - 2).rev().map(|l| Span::raw(l.clone())).collect();
-            let output_para = Paragraph::new(Spans::from(out_lines)).block(Block::default().borders(Borders::ALL).title(if app.building {"Output (building)..."} else {"Output"}));
+            let output_para = Paragraph::new(Spans::from(out_lines)).block(Block::default().borders(Borders::ALL).title(if app.building {"Output (building)..."} else {"Output"})).wrap(Wrap { trim: true });
             f.render_widget(output_para, chunks[1]);
 
             // draw modal if selecting or editing
