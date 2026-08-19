@@ -5,7 +5,7 @@ import os
 
 def get_hostname() -> str:
     prefix = "robot"
-    sep = "-"
+    sep = "_"
 
     config_path = "/etc/robot-config/hostname_prefix"
     if os.path.exists(config_path):
@@ -14,7 +14,8 @@ def get_hostname() -> str:
 
     try:
         mac = uuid.getnode()
-        octets = [f"{(mac >> i) & 0xFF:02x}" for i in range(0, 48, 8)][::-1]
+        octets = [f"{(mac >> i) & 0xFF:02X}" for i in range(0, 48, 8)][::-1]
+        # use last three octets separated by underscores, uppercase
         suffix = sep.join(octets[3:6])
         return f"{prefix}{sep}{suffix}"
     except Exception:

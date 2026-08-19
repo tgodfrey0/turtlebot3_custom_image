@@ -298,7 +298,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let params = vec![
                 format!("Profile: {}", app.profile),
                 format!("Machine: {}", app.machine),
-                format!("Hostname: {}", app.hostname_prefix),
+                format!("Hostname Prefix: {}", app.hostname_prefix),
                 format!("Image Name: {}", app.image_name),
                 format!("User: {}", app.robot_user),
                 format!("Password: {}", "****"),

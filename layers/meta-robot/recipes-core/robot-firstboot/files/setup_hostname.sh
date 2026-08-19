@@ -21,9 +21,16 @@ fi
 if [[ -z "$NEW_HOSTNAME" ]]; then
     if [[ -f /sys/class/net/eth0/address ]]; then
         MAC=$(tr -d ':' < /sys/class/net/eth0/address)
-        NEW_HOSTNAME="${HOSTNAME_PREFIX}-${MAC: -6}"
+        # take last 6 hex chars and format as AA_BB_CC uppercase
+        suffix_lower=${MAC: -6}
+        s1=${suffix_lower:0:2}
+        s2=${suffix_lower:2:2}
+        s3=${suffix_lower:4:2}
+        suffix="${s1}_${s2}_${s3}"
+        suffix=$(echo "${suffix}" | tr '[:lower:]' '[:upper:]')
+        NEW_HOSTNAME="${HOSTNAME_PREFIX}_${suffix}"
     else
-        NEW_HOSTNAME="${HOSTNAME_PREFIX}-robot"
+        NEW_HOSTNAME="${HOSTNAME_PREFIX}_ROBOT"
     fi
 fi
 
