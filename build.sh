@@ -64,13 +64,84 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
   exit 0
 fi
 
+# helper to read a key from local.conf (simple parser)
+get_kv() {
+  key="$1"
+  if grep -q "^${key}" "${LOCAL_CONF}"; then
+    grep "^${key}" "${LOCAL_CONF}" | head -n1 | sed -E 's/^[^=]+= *"(.*)"/\1/'
+  else
+    echo ""
+  fi
+}
+
+write_summary() {
+  SUMMARY_DIR="${TOPDIR}/build-summaries"
+  mkdir -p "${SUMMARY_DIR}"
+  TS=$(date -u +"%Y%m%dT%H%M%SZ")
+  OUTFILE="${SUMMARY_DIR}/${TS}-${PROFILE}-${MACHINE_VAL:-${MACHINE}}.txt"
+
+  IMAGE_NAME_VAL=$(get_kv IMAGE_NAME)
+  ROBOT_USER_VAL=$(get_kv ROBOT_USER)
+  ROBOT_PASS_VAL=$(get_kv ROBOT_PASS)
+  ROBOT_TYPE_VAL=$(get_kv ROBOT_TYPE)
+  HOSTNAME_PREFIX_VAL=$(get_kv HOSTNAME_PREFIX)
+  TAILSCALE_ENABLED_VAL=$(get_kv TAILSCALE_ENABLED)
+  TAILSCALE_AUTHKEY_VAL=$(get_kv TAILSCALE_AUTHKEY)
+  ROS_ENABLED_VAL=$(get_kv ROS_ENABLED)
+  MAVLINK_ENABLED_VAL=$(get_kv MAVLINK_ENABLED)
+  CAMERA_SUPPORT_VAL=$(get_kv CAMERA_SUPPORT)
+  OPENCR_SUPPORT_VAL=$(get_kv OPENCR_SUPPORT)
+
+  mask() {
+    v="$1"
+    if [[ -z "$v" ]]; then
+      echo ""
+    else
+      echo "${v:0:4}***"
+    fi
+  }
+
+  {
+    echo "timestamp: ${TS}"
+    echo "profile: ${PROFILE}"
+    echo "machine: ${MACHINE_VAL:-${MACHINE}}"
+    echo "image_name: ${IMAGE_NAME_VAL}"
+    echo "robot_type: ${ROBOT_TYPE_VAL}"
+    echo "robot_user: ${ROBOT_USER_VAL}"
+    echo "robot_pass: $(mask "${ROBOT_PASS_VAL}")"
+    echo "hostname_prefix: ${HOSTNAME_PREFIX_VAL}"
+    echo "tailscale_enabled: ${TAILSCALE_ENABLED_VAL}"
+    echo "tailscale_authkey: $(mask "${TAILSCALE_AUTHKEY_VAL}")"
+    echo "ros_enabled: ${ROS_ENABLED_VAL}"
+    echo "mavlink_enabled: ${MAVLINK_ENABLED_VAL}"
+    echo "camera_support: ${CAMERA_SUPPORT_VAL}"
+    echo "opencr_support: ${OPENCR_SUPPORT_VAL}"
+    echo "kas_command: kas build configs/kas/${PROFILE}.yml"
+
+    # attempt to list generated images
+    echo "\nfound_images:"
+    find . -path "*/tmp/deploy/images/*/*.wic" -type f -mmin -120 -print 2>/dev/null || true
+  } > "${OUTFILE}"
+
+  echo "Wrote build summary to ${OUTFILE}"
+}
+
 # run kas build unless NO_BUILD
 KAS_CMD=(kas build "configs/kas/${PROFILE}.yml")
 if [[ ${NO_BUILD} -eq 1 ]]; then
   echo "Exported conf and skipping build. Run: \
     ${KAS_CMD[*]}"
+  write_summary || true
   exit 0
 fi
 
 echo "Running: ${KAS_CMD[*]}"
 "${KAS_CMD[@]}"
+RC=$?
+if [[ ${RC} -eq 0 ]]; then
+  echo "Build completed successfully"
+  write_summary || true
+else
+  echo "Build failed (exit ${RC})"
+fi
+exit ${RC}
