@@ -117,7 +117,7 @@ write_summary() {
     echo "kas_command: kas build configs/kas/${PROFILE}.yml"
 
     # attempt to list generated images (common extensions)
-    echo "\nfound_images:"
+    printf "\nfound_images:\n"
     find . -path "*/tmp/deploy/images/*/*.{wic,img,zip}" -type f -mmin -120 -print 2>/dev/null || true
   } > "${OUTFILE}"
 
