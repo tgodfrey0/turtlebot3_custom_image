@@ -25,3 +25,5 @@ Next steps
 2026-08-19T14:20:00+01:00 - Feature: build summaries
 - build.sh now writes a summary file under build-summaries/ after export (--no-build) or a successful build.
 - Summary includes profile, machine, image_name, user, masked password and authkey, hostname_prefix, feature toggles, kas command, and found images.
+
+2026-08-19T14:29:30+01:00 - Removed install_and_place.sh; Makefile handles post-build and installs builder-tui to repo root and dist/

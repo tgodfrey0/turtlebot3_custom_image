@@ -44,7 +44,7 @@ Install kas (e.g., pip install kas) and ensure git, python3 are available.
 # Build and install binary to repo root:
 # cd tools/kas-tui && ./install_and_place.sh
 # Run the TUI binary from repo root:
-# ./kas-tui --profile turtlebot3 --export --machine raspberrypi4-64
+# ./builder-tui --profile turtlebot3 --export --machine raspberrypi4-64
 # or run in interactive mode (no --export) to use the full UI.
 
 # Legacy: pixi-based workflow (kept for compatibility):

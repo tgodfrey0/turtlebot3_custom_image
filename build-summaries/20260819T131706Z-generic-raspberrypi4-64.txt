@@ -1,0 +1,16 @@
+timestamp: 20260819T131706Z
+profile: generic
+machine: raspberrypi4-64
+image_name: 
+robot_type: turtlebot3
+robot_user: tb
+robot_pass: chan***
+hostname_prefix: tb3
+tailscale_enabled: 1
+ros_enabled: 1
+mavlink_enabled: 
+camera_support: 1
+opencr_support: 1
+kas_command: kas build configs/kas/generic.yml
+
+found_images:
