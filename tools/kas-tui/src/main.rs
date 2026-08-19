@@ -93,6 +93,7 @@ fn default_machines() -> Vec<String> {
     vec![
         "raspberrypi4-64".into(),
         "raspberrypi5".into(),
+        "raspberrypi-cm5".into(),
         "raspberrypi-cm5-io-board".into(),
         "jetson-orin".into(),
     ]
@@ -167,7 +168,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let mut state = ratatui::widgets::ListState::default();
             state.select(Some(app.selected));
-            let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Build Options")).highlight_style(Style::default().bg(Color::Blue).fg(Color::White).add_modifier(Modifier::BOLD));
+            let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Build Options")).highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD));
             f.render_stateful_widget(list, left_chunks[0], &mut state);
 
             let preview = Paragraph::new(Spans::from(vec![Span::raw(format!("Preview command: ./build.sh --profile {} --machine {}\n\nMessage: {}", app.profile, app.machine, app.message))]))
