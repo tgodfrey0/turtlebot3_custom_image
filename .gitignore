@@ -66,4 +66,5 @@ __pycache__/
 *.pyc
 
 # Build artifacts from previous system
+output/
 output-*/
