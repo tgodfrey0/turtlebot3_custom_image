@@ -1,7 +1,9 @@
 use std::error::Error;
-use std::io::{self};
+use std::io::{self, BufRead, BufReader};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::mpsc::{self, Sender};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode};
@@ -9,7 +11,7 @@ use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Style};
 use ratatui::text::{Span, Spans};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 use ratatui::Terminal;
@@ -120,15 +122,67 @@ fn find_build_sh() -> Option<PathBuf> {
     None
 }
 
-fn run_build_sh(args: &Vec<String>) -> Result<i32, Box<dyn Error>> {
+fn run_build_sh(args: &Vec<String>) -> Result<i32, Box<dyn std::error::Error>> {
     if let Some(build) = find_build_sh() {
-        let mut cmd = Command::new(build);
-        for a in args.iter() { cmd.arg(a); }
-        let status = cmd.status()?;
+        let status = Command::new(build).args(args).status()?;
         Ok(status.code().unwrap_or(0))
     } else {
         Err("build.sh not found".into())
     }
+}
+
+fn spawn_build(tx: Sender<String>, args: Vec<String>) {
+    thread::spawn(move || {
+        if let Some(build) = find_build_sh() {
+            let mut cmd = Command::new(build);
+            cmd.args(&args);
+            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+            match cmd.spawn() {
+                Ok(mut child) => {
+                    // stdout
+                    if let Some(out) = child.stdout.take() {
+                        let txo = tx.clone();
+                        thread::spawn(move || {
+                            let reader = BufReader::new(out);
+                            for line in reader.lines() {
+                                let l = line.unwrap_or_default();
+                                let _ = txo.send(l);
+                            }
+                        });
+                    }
+                    // stderr
+                    if let Some(err) = child.stderr.take() {
+                        let txe = tx.clone();
+                        thread::spawn(move || {
+                            let reader = BufReader::new(err);
+                            for line in reader.lines() {
+                                let l = line.unwrap_or_default();
+                                let _ = txe.send(l);
+                            }
+                        });
+                    }
+                    // wait
+                    match child.wait() {
+                        Ok(status) => {
+                            let code = status.code().unwrap_or(-1);
+                            let _ = tx.send(format!("__BUILD_DONE__:{}", code));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(format!("Build failed to wait: {}", e));
+                            let _ = tx.send("__BUILD_DONE__:-1".to_string());
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(format!("Failed to spawn build: {}", e));
+                    let _ = tx.send("__BUILD_DONE__:-1".to_string());
+                }
+            }
+        } else {
+            let _ = tx.send("build.sh not found".to_string());
+            let _ = tx.send("__BUILD_DONE__:-1".to_string());
+        }
+    });
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -139,10 +193,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::default();
+    let (tx, rx) = mpsc::channel::<String>();
     let tick_rate = Duration::from_millis(200);
     let mut last_tick = Instant::now();
 
     loop {
+        // drain receiver to update output
+        while let Ok(line) = rx.try_recv() {
+            if line.starts_with("__BUILD_DONE__:") {
+                app.building = false;
+                if let Some(code) = line.split(':').nth(1) {
+                    app.message = format!("Build finished (exit {})", code);
+                }
+            } else {
+                app.output.push(line);
+            }
+        }
+
         terminal.draw(|f| {
             let size = f.size();
             // draw grey background
@@ -159,33 +226,42 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
                 .split(chunks[0]);
 
-            let items: Vec<ListItem> = app.items.iter().enumerate().map(|(i, it)| {
-                let val = match i {
-                    0 => format!("{}: {}", it, app.profile),
-                    1 => format!("{}: {}", it, app.machine),
-                    2 => format!("{}: {}", it, app.hostname_prefix),
-                    3 => format!("{}: {}", it, app.image_name),
-                    4 => format!("{}: {}", it, app.robot_user),
-                    5 => format!("{}: {}", it, "****"),
-                    6 => format!("{}: {}", it, if app.tailscale {"enabled"} else {"disabled"}),
-                    7 => format!("{}: {}", it, if app.tailscale_authkey.is_empty() {"(none)"} else {"(set)"}),
-                    8 => format!("{}: {}", it, if app.ros {"enabled"} else {"disabled"}),
-                    9 => format!("{}: {}", it, if app.mavlink {"enabled"} else {"disabled"}),
-                    10 => format!("{}: {}", it, if app.opencr {"enabled"} else {"disabled"}),
-                    11 => format!("Actions: p=preview e=export b=build q=quit"),
-                    _ => it.clone(),
-                };
-                ListItem::new(Spans::from(Span::raw(val)))
-            }).collect();
+            // render parameters in multiple columns in left area
+            let params = vec![
+                format!("Profile: {}", app.profile),
+                format!("Machine: {}", app.machine),
+                format!("Hostname: {}", app.hostname_prefix),
+                format!("Image: {}", app.image_name),
+                format!("User: {}", app.robot_user),
+                format!("Password: {}", "****"),
+                format!("Tailscale: {}", if app.tailscale {"enabled"} else {"disabled"}),
+                format!("Tailscale key: {}", if app.tailscale_authkey.is_empty() {"(none)"} else {"(set)"}),
+                format!("ROS2: {}", if app.ros {"enabled"} else {"disabled"}),
+                format!("MAVLink: {}", if app.mavlink {"enabled"} else {"disabled"}),
+                format!("OpenCR: {}", if app.opencr {"enabled"} else {"disabled"}),
+            ];
 
-            let mut state = ratatui::widgets::ListState::default();
-            state.select(Some(app.selected));
-            let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Build Options")).highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD));
-            f.render_stateful_widget(list, left_chunks[0], &mut state);
+            let cols = 3usize;
+            let mut col_chunks = vec![];
+            for _ in 0..cols { col_chunks.push(Constraint::Percentage((100/cols) as u16)); }
+            let param_cols = Layout::default().direction(Direction::Horizontal).constraints(col_chunks.as_slice()).split(left_chunks[0]);
 
-            let preview = Paragraph::new(Spans::from(vec![Span::raw(format!("Preview command: ./build.sh --profile {} --machine {}\n", app.profile, app.machine)), Span::raw(format!("Message: {}", app.message))]))
-                .block(Block::default().borders(Borders::ALL).title("Preview"));
-            f.render_widget(preview, left_chunks[1]);
+            // distribute items into columns
+            for (ci, area) in param_cols.iter().enumerate() {
+                let mut lines = Vec::new();
+                let mut i = ci;
+                while i < params.len() {
+                    lines.push(ListItem::new(Spans::from(Span::raw(params[i].clone()))));
+                    i += cols;
+                }
+                let list = List::new(lines).block(Block::default().borders(Borders::ALL).title("Parameters"));
+                f.render_widget(list, *area);
+            }
+
+            // actions box on the right
+            let actions = Paragraph::new(Spans::from(vec![Span::raw("Actions:\n p: preview  e: export  b: build  q: quit\n\nUse Enter to edit or select fields." )]))
+                .block(Block::default().borders(Borders::ALL).title("Actions"));
+            f.render_widget(actions, left_chunks[1]);
 
             // bottom output area is chunks[1]
             let out_lines: Vec<Span> = app.output.iter().rev().take(chunks[1].height as usize - 2).rev().map(|l| Span::raw(l.clone())).collect();
@@ -258,23 +334,28 @@ fn main() -> Result<(), Box<dyn Error>> {
                             enable_raw_mode().ok();
                         }
                         KeyCode::Char('b') => {
-                            app.message = "Running build (this may take long)...".into();
-                            disable_raw_mode().ok();
-                            let mut args = Vec::new();
-                            args.push("--profile".to_string()); args.push(app.profile.clone());
-                            args.push("--machine".to_string()); args.push(app.machine.clone());
-                            args.push("--image-name".to_string()); args.push(app.image_name.clone());
-                            args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
-                            args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
-                            args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                            if !app.tailscale_authkey.is_empty() { args.push("--authkey".to_string()); args.push(app.tailscale_authkey.clone()); }
-                            args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
-                            args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
-                            args.push("--mavlink-enabled".to_string()); args.push((if app.mavlink {"1"} else {"0"}).to_string());
-                            args.push("--opencr-enabled".to_string()); args.push((if app.opencr {"1"} else {"0"}).to_string());
-                            args.push("--outdir".to_string()); args.push("./output".to_string());
-                            match run_build_sh(&args) { Ok(code) => app.message = format!("Build finished (exit {})", code), Err(e) => app.message = format!("Build failed: {}", e), }
-                            enable_raw_mode().ok();
+                            if app.building {
+                                app.message = "Build already running".into();
+                            } else {
+                                app.message = "Starting build...".into();
+                                app.output.clear();
+                                app.building = true;
+                                let mut args = Vec::new();
+                                args.push("--profile".to_string()); args.push(app.profile.clone());
+                                args.push("--machine".to_string()); args.push(app.machine.clone());
+                                args.push("--image-name".to_string()); args.push(app.image_name.clone());
+                                args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
+                                args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
+                                args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
+                                if !app.tailscale_authkey.is_empty() { args.push("--authkey".to_string()); args.push(app.tailscale_authkey.clone()); }
+                                args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
+                                args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
+                                args.push("--mavlink-enabled".to_string()); args.push((if app.mavlink {"1"} else {"0"}).to_string());
+                                args.push("--opencr-enabled".to_string()); args.push((if app.opencr {"1"} else {"0"}).to_string());
+                                args.push("--outdir".to_string()); args.push("./output".to_string());
+                                let _ = spawn_build(tx.clone(), args);
+                                // keep in raw mode while build runs; main loop will collect output
+                            }
                         }
                         KeyCode::Enter => {
                             // enter editing or selecting depending on field
