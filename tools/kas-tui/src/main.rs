@@ -123,15 +123,6 @@ fn find_build_sh() -> Option<PathBuf> {
     None
 }
 
-fn run_build_sh(args: &Vec<String>) -> Result<i32, Box<dyn std::error::Error>> {
-    if let Some(build) = find_build_sh() {
-        let status = Command::new(build).args(args).status()?;
-        Ok(status.code().unwrap_or(0))
-    } else {
-        Err("build.sh not found".into())
-    }
-}
-
 fn spawn_build(tx: Sender<String>, args: Vec<String>) {
     thread::spawn(move || {
         if let Some(build) = find_build_sh() {
