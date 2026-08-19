@@ -1,7 +1,9 @@
 use std::error::Error;
-use std::io::{self, Write};
+use std::io::{self, Write, BufRead, BufReader};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode};
@@ -11,7 +13,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Span, Spans};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph};
 use ratatui::Terminal;
 
 enum Mode {
@@ -39,10 +41,19 @@ struct App {
 
     message: String,
     mode: Mode,
+
+    // UI/runtime
+    output: Vec<String>,
+    building: bool,
+    spinner: usize,
+    profiles: Vec<String>,
+    machines: Vec<String>,
 }
 
 impl Default for App {
     fn default() -> Self {
+        let profiles = load_profiles();
+        let machines = default_machines();
         Self {
             items: vec![
                 "Profile".into(),
@@ -59,8 +70,8 @@ impl Default for App {
                 "Actions".into(),
             ],
             selected: 0,
-            profile: "generic".into(),
-            machine: "raspberrypi4-64".into(),
+            profile: profiles.get(0).cloned().unwrap_or_else(|| "generic".into()),
+            machine: machines.get(0).cloned().unwrap_or_else(|| "raspberrypi4-64".into()),
             hostname_prefix: "robot".into(),
             image_name: "uav_companion".into(),
             robot_user: "robot".into(),
@@ -72,6 +83,11 @@ impl Default for App {
             opencr: false,
             message: "Enter=edit, Space=toggle, p=preview, e=export, b=build, q=quit".into(),
             mode: Mode::Normal,
+            output: Vec::new(),
+            building: false,
+            spinner: 0,
+            profiles,
+            machines,
         }
     }
 }
@@ -137,6 +153,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     loop {
         terminal.draw(|f| {
             let size = f.size();
+            // draw grey background
+            let bg = Paragraph::new("").block(Block::default().style(Style::default().bg(Color::Rgb(128,128,128))));
+            f.render_widget(bg, size);
+
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Percentage(65), Constraint::Percentage(35)].as_ref())
@@ -171,18 +191,21 @@ fn main() -> Result<(), Box<dyn Error>> {
             let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Build Options")).highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD));
             f.render_stateful_widget(list, left_chunks[0], &mut state);
 
-            let preview = Paragraph::new(Spans::from(vec![Span::raw(format!("Preview command: ./build.sh --profile {} --machine {}\n\nMessage: {}", app.profile, app.machine, app.message))]))
+            let preview = Paragraph::new(Spans::from(vec![Span::raw(format!("Preview command: ./build.sh --profile {} --machine {}\n", app.profile, app.machine)), Span::raw(format!("Message: {}", app.message))]))
                 .block(Block::default().borders(Borders::ALL).title("Preview"));
             f.render_widget(preview, left_chunks[1]);
 
-            let help = Paragraph::new(Spans::from(vec![Span::raw(&app.message)])).block(Block::default().borders(Borders::ALL).title("Status"));
-            f.render_widget(help, chunks[1]);
+            // bottom output area is chunks[1]
+            let out_lines: Vec<Span> = app.output.iter().rev().take((chunks[1].height as usize - 2)).rev().map(|l| Span::raw(l.clone())).collect();
+            let output_para = Paragraph::new(Spans::from(out_lines)).block(Block::default().borders(Borders::ALL).title(if app.building {"Output (building)..."} else {"Output"}));
+            f.render_widget(output_para, chunks[1]);
 
             // draw modal if selecting or editing
             match &app.mode {
                 Mode::Selecting { field: _, options, idx } => {
                     let area = ratatui::layout::Rect { x: size.width/8, y: size.height/6, width: size.width*3/4, height: size.height*2/5 };
                     f.render_widget(Clear, area); // clear background
+                    // render options in a list
                     let opts: Vec<ListItem> = options.iter().map(|o| ListItem::new(Spans::from(Span::raw(o)))).collect();
                     let mut s = ratatui::widgets::ListState::default(); s.select(Some(*idx));
                     let sel = List::new(opts).block(Block::default().borders(Borders::ALL).title("Select option")).highlight_style(Style::default().bg(Color::Green).fg(Color::Black));
