@@ -216,17 +216,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             let bg = Paragraph::new("").block(Block::default().style(Style::default().bg(Color::Rgb(40,40,40))));
             f.render_widget(bg, size);
 
+            // Layout: top 1/3 for controls, bottom 2/3 for full-width output
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(65), Constraint::Percentage(35)].as_ref())
+                .constraints([Constraint::Percentage(33), Constraint::Percentage(67)].as_ref())
                 .split(size);
 
-            let left_chunks = Layout::default()
+            // Top area split: left = 66% (parameters, scrollable), right = 34% (actions)
+            let top_cols = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+                .constraints([Constraint::Percentage(66), Constraint::Percentage(34)].as_ref())
                 .split(chunks[0]);
 
-            // render parameters in multiple columns in left area
+            // render parameters as a single scrollable list in the left top area
             let params = vec![
                 format!("Profile: {}", app.profile),
                 format!("Machine: {}", app.machine),
@@ -241,29 +243,21 @@ fn main() -> Result<(), Box<dyn Error>> {
                 format!("OpenCR: {}", if app.opencr {"enabled"} else {"disabled"}),
             ];
 
-            let cols = 3usize;
-            let mut col_chunks = vec![];
-            for _ in 0..cols { col_chunks.push(Constraint::Percentage((100/cols) as u16)); }
-            let param_cols = Layout::default().direction(Direction::Horizontal).constraints(col_chunks.as_slice()).split(left_chunks[0]);
+            // Build a scrollable list of parameters (stateful) so user can navigate and it will auto-scroll
+            let param_items: Vec<ListItem> = params.iter().map(|p| ListItem::new(Spans::from(Span::raw(p.clone())))).collect();
+            let mut list_state = ratatui::widgets::ListState::default();
+            if app.selected < params.len() { list_state.select(Some(app.selected)); } else { list_state.select(None); }
+            let param_list = List::new(param_items)
+                .block(Block::default().borders(Borders::ALL).title("Parameters"))
+                .highlight_style(Style::default().bg(Color::Green).fg(Color::Black));
+            f.render_stateful_widget(param_list, top_cols[0], &mut list_state);
 
-            // distribute items into columns
-            for (ci, area) in param_cols.iter().enumerate() {
-                let mut lines = Vec::new();
-                let mut i = ci;
-                while i < params.len() {
-                    lines.push(ListItem::new(Spans::from(Span::raw(params[i].clone()))));
-                    i += cols;
-                }
-                let list = List::new(lines).block(Block::default().borders(Borders::ALL).title("Parameters"));
-                f.render_widget(list, *area);
-            }
-
-            // actions box on the right
-            let actions = Paragraph::new(Spans::from(vec![Span::raw("Actions:\n p: preview  e: export  b: build  q: quit\n\nUse Enter to edit or select fields." )]))
+            // actions box on the right (top area)
+            let actions = Paragraph::new(Spans::from(vec![Span::raw("Actions:\n p: preview  e: export  b: build  q: quit\n\nUse Enter to edit or select fields.")]))
                 .block(Block::default().borders(Borders::ALL).title("Actions"));
-            f.render_widget(actions, left_chunks[1]);
+            f.render_widget(actions, top_cols[1]);
 
-            // bottom output area is chunks[1]
+            // bottom output area is chunks[1] (full width)
             let out_lines: Vec<Span> = app.output.iter().rev().take(chunks[1].height as usize - 2).rev().map(|l| Span::raw(l.clone())).collect();
             let output_para = Paragraph::new(Spans::from(out_lines)).block(Block::default().borders(Borders::ALL).title(if app.building {"Output (building)..."} else {"Output"}));
             f.render_widget(output_para, chunks[1]);
