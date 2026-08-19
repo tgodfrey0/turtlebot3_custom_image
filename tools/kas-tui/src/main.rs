@@ -146,7 +146,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         terminal.draw(|f| {
             let size = f.size();
             // draw grey background
-            let bg = Paragraph::new("").block(Block::default().style(Style::default().bg(Color::Rgb(128,128,128))));
+            let bg = Paragraph::new("").block(Block::default().style(Style::default().bg(Color::Rgb(40,40,40))));
             f.render_widget(bg, size);
 
             let chunks = Layout::default()
