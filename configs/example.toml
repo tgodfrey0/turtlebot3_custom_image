@@ -82,7 +82,6 @@ distro = "humble"
 # Generate auth keys at https://login.tailscale.com/admin/settings/keys
 [tailscale]
 enabled = true
-# auth_key = "tskey-auth-..."
 # use_hostname = true  # Use the robot's hostname as its Tailscale hostname
 
 # Source image section.

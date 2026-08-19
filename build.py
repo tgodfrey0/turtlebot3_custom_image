@@ -298,19 +298,7 @@ def load_config(config_path: Path) -> BuildConfig:
     if "tailscale" in data:
         ts = data["tailscale"]
         cfg.tailscale.enabled = ts.get("enabled", cfg.tailscale.enabled)
-        cfg.tailscale.auth_key = ts.get("auth_key", cfg.tailscale.auth_key)
         cfg.tailscale.use_hostname = ts.get("use_hostname", cfg.tailscale.use_hostname)
-
-    # TAILSCALE_AUTH_KEY env var takes precedence over config value.
-    # This lets users avoid ever putting a key in a committed config file.
-    env_auth_key = os.environ.get("TAILSCALE_AUTH_KEY", "")
-    if env_auth_key:
-        if cfg.tailscale.auth_key and cfg.tailscale.auth_key != env_auth_key:
-            print(
-                "Warning: TAILSCALE_AUTH_KEY env var overrides auth_key from config.",
-                file=sys.stderr,
-            )
-        cfg.tailscale.auth_key = env_auth_key
 
     # Parse source section
     if "source" in data:
@@ -432,6 +420,24 @@ def prompt_missing_network_config(cfg: BuildConfig) -> None:
             password = getpass.getpass("Password (Leave blank if N/A): ").strip() or ""
             cfg.networks.append(NetworkConfig(ssid=ssid, password=password))
             cfg.add_connection = True
+
+
+def prompt_tailscale_auth_key(cfg: BuildConfig) -> None:
+    """Prompt for a Tailscale auth key when Tailscale is enabled.
+
+    The auth key is deliberately NOT configurable in the config file or via
+    environment variables, to prevent it ever being committed to a repo.
+    It is only ever entered interactively at build time.
+    """
+    if not cfg.tailscale.enabled:
+        return
+
+    import getpass
+    key = getpass.getpass(
+        "Tailscale auth key (for automatic authorization on first boot; "
+        "leave blank for manual/later setup): "
+    ).strip()
+    cfg.tailscale.auth_key = key
 
 
 def get_build_subdirectory(cfg: BuildConfig) -> Path:
@@ -562,7 +568,9 @@ def display_config(cfg: BuildConfig) -> None:
         ts_status += " (manual auth required)"
 
     # LIDAR info
-    lidar_info = cfg.lidar.model if cfg.lidar.model else "(not set)"
+    lidar_info = ""
+    if cfg.robot.type == "turtlebot3":
+        lidar_info = cfg.lidar.model if cfg.lidar.model else "(not set)"
 
     print(f"""
 Configuration:
@@ -571,9 +579,11 @@ NAME: {cfg.name}
 VERSION: {cfg.computed_version}
 ROBOT_TYPE: {cfg.robot.type}
 ROBOT_MODEL: {robot_label}
-HOSTNAME_PREFIX: {cfg.robot.hostname_prefix}
-LIDAR: {lidar_info}
-{ros_info}
+HOSTNAME_PREFIX: {cfg.robot.hostname_prefix}"""
+    )
+    if lidar_info:
+        print(f"LIDAR: {lidar_info}")
+    print(f"""{ros_info}
 TAILSCALE: {ts_status}
 UBUNTU_VERSION: {cfg.ubuntu_version}
 USERNAME: {cfg.username}
@@ -1106,6 +1116,28 @@ def run_packer_build(cfg: BuildConfig, source_image_path: Path) -> None:
         raise
 
 
+class StageTracker:
+    """Simple stage progress tracker."""
+    def __init__(self, total: int):
+        self.total = total
+        self.current = 0
+        self.start_time = None
+
+    def next(self, name: str) -> None:
+        self.current += 1
+        import time
+        self.start_time = time.time()
+        print(f"\n\033[1;36m[{self.current}/{self.total}] {name}\033[0m")
+
+    def done(self, msg: str = "done") -> None:
+        import time
+        if self.start_time:
+            elapsed = time.time() - self.start_time
+            print(f"    \033[1;32m✓ {msg} ({elapsed:.1f}s)\033[0m")
+        else:
+            print(f"    \033[1;32m✓ {msg}\033[0m")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Build custom robot Ubuntu images using TOML configuration files.",
@@ -1171,6 +1203,11 @@ Config File Structure:
         # Handle network configuration (prompt for missing values if network section exists)
         prompt_missing_network_config(cfg)
 
+        # Prompt for Tailscale auth key (if Tailscale enabled). Skipped in
+        # dry-run so we don't solicit a secret unless actually building.
+        if not args.dry_run:
+            prompt_tailscale_auth_key(cfg)
+
         # Display configuration
         display_config(cfg)
 
@@ -1184,6 +1221,8 @@ Config File Structure:
             print("Aborting operation.")
             sys.exit(0)
 
+        # Initialize stage tracker
+        stages = StageTracker(4)
         print("\nProceeding with the build process...")
 
         # Create build subdirectory
@@ -1208,16 +1247,26 @@ Config File Structure:
             if not prompt_sudo():
                 raise BuildError("sudo permissions are required")
 
-        # Download source image
+        # Stage 1: Download source image
+        stages.next("Downloading source image")
         source_image_path = download_source_image(cfg)
+        stages.done()
 
-        # Pull Packer image
+        # Stage 2: Pull Packer image
+        stages.next("Pulling Packer builder image")
         pull_packer_image(cfg)
+        stages.done()
 
-        # Run build
+        # Stage 3: Packer build (provisioning)
+        stages.next("Packer build (provisioning)")
         run_packer_build(cfg, source_image_path)
+        stages.done()
 
-        print("\nBuild completed successfully!")
+        # Stage 4: Post-processing (compression, bmap)
+        stages.next("Post-processing (compression, bmap)")
+        stages.done("completed")
+
+        print("\n\033[1;32mBuild completed successfully!\033[0m")
         print(f"Output files in: {build_subdir}")
 
     except BuildError as e:
