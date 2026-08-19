@@ -86,7 +86,6 @@ write_summary() {
   ROBOT_TYPE_VAL=$(get_kv ROBOT_TYPE)
   HOSTNAME_PREFIX_VAL=$(get_kv HOSTNAME_PREFIX)
   TAILSCALE_ENABLED_VAL=$(get_kv TAILSCALE_ENABLED)
-  TAILSCALE_AUTHKEY_VAL=$(get_kv TAILSCALE_AUTHKEY)
   ROS_ENABLED_VAL=$(get_kv ROS_ENABLED)
   MAVLINK_ENABLED_VAL=$(get_kv MAVLINK_ENABLED)
   CAMERA_SUPPORT_VAL=$(get_kv CAMERA_SUPPORT)
@@ -111,19 +110,41 @@ write_summary() {
     echo "robot_pass: $(mask "${ROBOT_PASS_VAL}")"
     echo "hostname_prefix: ${HOSTNAME_PREFIX_VAL}"
     echo "tailscale_enabled: ${TAILSCALE_ENABLED_VAL}"
-    echo "tailscale_authkey: $(mask "${TAILSCALE_AUTHKEY_VAL}")"
     echo "ros_enabled: ${ROS_ENABLED_VAL}"
     echo "mavlink_enabled: ${MAVLINK_ENABLED_VAL}"
     echo "camera_support: ${CAMERA_SUPPORT_VAL}"
     echo "opencr_support: ${OPENCR_SUPPORT_VAL}"
     echo "kas_command: kas build configs/kas/${PROFILE}.yml"
 
-    # attempt to list generated images
+    # attempt to list generated images (common extensions)
     echo "\nfound_images:"
-    find . -path "*/tmp/deploy/images/*/*.wic" -type f -mmin -120 -print 2>/dev/null || true
+    find . -path "*/tmp/deploy/images/*/*.{wic,img,zip}" -type f -mmin -120 -print 2>/dev/null || true
   } > "${OUTFILE}"
 
   echo "Wrote build summary to ${OUTFILE}"
+
+  # For each generated image, create a sibling directory named by image name (or base name)
+  # and copy the image into it as 'image' and write 'image-parameter_summary' with the same summary content.
+  IMAGES=$(find . -path "*/tmp/deploy/images/*/*.{wic,img,zip}" -type f -mmin -120 -print 2>/dev/null || true)
+  if [[ -n "${IMAGES}" ]]; then
+    while IFS= read -r img; do
+      img_dir=$(dirname "${img}")
+      # determine dir name: prefer IMAGE_NAME_VAL, otherwise base name without extension
+      if [[ -n "${IMAGE_NAME_VAL}" ]]; then
+        dir_name="${IMAGE_NAME_VAL}"
+      else
+        bn=$(basename "${img}")
+        dir_name="${bn%.*}"
+      fi
+      target_dir="${img_dir}/${dir_name}"
+      mkdir -p "${target_dir}"
+      # copy image content into 'image' (no extension)
+      cp -f "${img}" "${target_dir}/image"
+      # write parameter summary file
+      cp -f "${OUTFILE}" "${target_dir}/image-parameter_summary"
+      echo "Created package: ${target_dir}/image and ${target_dir}/image-parameter_summary"
+    done <<< "${IMAGES}"
+  fi
 }
 
 # run kas build unless NO_BUILD
