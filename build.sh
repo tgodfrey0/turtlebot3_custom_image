@@ -8,9 +8,10 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TOPDIR=${SCRIPT_DIR}
 TEMPLATE=${TOPDIR}/conf/local.conf.template
 LOCAL_CONF=${TOPDIR}/conf/local.conf
-PROFILE="${1:-generic}"
+PROFILE="generic"
 NO_BUILD=0
 DRY_RUN=0
+OUTPUT_ROOT="${TOPDIR}/output"
 
 # parse simple args
 while [[ $# -gt 0 ]]; do
@@ -20,10 +21,18 @@ while [[ $# -gt 0 ]]; do
     --authkey) TAILSCALE_AUTHKEY_VAL="$2"; shift 2;;
     --hostname) HOSTNAME_PREFIX_VAL="$2"; shift 2;;
     --image-name) IMAGE_NAME_VAL="$2"; shift 2;;
+    --robot-user) ROBOT_USER_VAL="$2"; shift 2;;
+    --robot-pass) ROBOT_PASS_VAL="$2"; shift 2;;
+    --tailscale-enabled) TAILSCALE_ENABLED_VAL="$2"; shift 2;;
+    --ros-enabled) ROS_ENABLED_VAL="$2"; shift 2;;
+    --mavlink-enabled) MAVLINK_ENABLED_VAL="$2"; shift 2;;
+    --camera-enabled) CAMERA_SUPPORT_VAL="$2"; shift 2;;
+    --opencr-enabled) OPENCR_SUPPORT_VAL="$2"; shift 2;;
+    --outdir) OUTPUT_ROOT="$2"; shift 2;;
     --no-build) NO_BUILD=1; shift 1;;
     --dry-run) DRY_RUN=1; shift 1;;
     --export-only) NO_BUILD=1; DRY_RUN=0; shift 1;;
-    --help) echo "Usage: $0 --profile <generic|turtlebot3> [--machine MACHINE] [--authkey KEY] [--hostname PREFIX] [--no-build] [--dry-run]"; exit 0;;
+    --help) echo "Usage: $0 --profile <generic|turtlebot3> [--machine MACHINE] [--authkey KEY] [--hostname PREFIX] [--image-name NAME] [--robot-user USER] [--robot-pass PASS] [--tailscale-enabled 0|1] [--ros-enabled 0|1] [--outdir DIR] [--no-build] [--dry-run]"; exit 0;;
     *) shift 1;;
   esac
 done
@@ -53,6 +62,13 @@ set_kv() {
 [ -n "${TAILSCALE_AUTHKEY_VAL:-}" ] && set_kv TAILSCALE_AUTHKEY "${TAILSCALE_AUTHKEY_VAL}"
 [ -n "${HOSTNAME_PREFIX_VAL:-}" ] && set_kv HOSTNAME_PREFIX "${HOSTNAME_PREFIX_VAL}"
 [ -n "${IMAGE_NAME_VAL:-}" ] && set_kv IMAGE_NAME "${IMAGE_NAME_VAL}"
+[ -n "${ROBOT_USER_VAL:-}" ] && set_kv ROBOT_USER "${ROBOT_USER_VAL}"
+[ -n "${ROBOT_PASS_VAL:-}" ] && set_kv ROBOT_PASS "${ROBOT_PASS_VAL}"
+[ -n "${TAILSCALE_ENABLED_VAL:-}" ] && set_kv TAILSCALE_ENABLED "${TAILSCALE_ENABLED_VAL}"
+[ -n "${ROS_ENABLED_VAL:-}" ] && set_kv ROS_ENABLED "${ROS_ENABLED_VAL}"
+[ -n "${MAVLINK_ENABLED_VAL:-}" ] && set_kv MAVLINK_ENABLED "${MAVLINK_ENABLED_VAL}"
+[ -n "${CAMERA_SUPPORT_VAL:-}" ] && set_kv CAMERA_SUPPORT "${CAMERA_SUPPORT_VAL}"
+[ -n "${OPENCR_SUPPORT_VAL:-}" ] && set_kv OPENCR_SUPPORT "${OPENCR_SUPPORT_VAL}"
 
 # log the generated conf location
 echo "Generated ${LOCAL_CONF} (profile=${PROFILE})"
@@ -123,26 +139,35 @@ write_summary() {
 
   echo "Wrote build summary to ${OUTFILE}"
 
-  # For each generated image, create a sibling directory named by image name (or base name)
-  # and copy the image into it as 'image' and write 'image-parameter_summary' with the same summary content.
+  # For each generated image, copy artifacts into OUTPUT_ROOT/<image_name_or_basename>/
   IMAGES=$(find . -path "*/tmp/deploy/images/*/*.{wic,img,zip}" -type f -mmin -120 -print 2>/dev/null || true)
   if [[ -n "${IMAGES}" ]]; then
     while IFS= read -r img; do
       img_dir=$(dirname "${img}")
-      # determine dir name: prefer IMAGE_NAME_VAL, otherwise base name without extension
+      bn=$(basename "${img}")
+      base_noext="${bn%.*}"
+      # determine target dir name from IMAGE_NAME_VAL if present, else base filename
       if [[ -n "${IMAGE_NAME_VAL}" ]]; then
         dir_name="${IMAGE_NAME_VAL}"
       else
-        bn=$(basename "${img}")
-        dir_name="${bn%.*}"
+        dir_name="${base_noext}"
       fi
-      target_dir="${img_dir}/${dir_name}"
+      target_dir="${OUTPUT_ROOT}/${dir_name}"
       mkdir -p "${target_dir}"
-      # copy image content into 'image' (no extension)
+
+      # copy the main image as 'image' (strip extension)
       cp -f "${img}" "${target_dir}/image"
+
+      # Copy related auxiliary files with same base name (e.g., .wic.bmap, .bmap)
+      for aux in "${img_dir}/${base_noext}"*; do
+        if [[ -f "${aux}" && "${aux}" != "${img}" ]]; then
+          cp -f "${aux}" "${target_dir}/$(basename "${aux}")"
+        fi
+      done
+
       # write parameter summary file
       cp -f "${OUTFILE}" "${target_dir}/image-parameter_summary"
-      echo "Created package: ${target_dir}/image and ${target_dir}/image-parameter_summary"
+      echo "Created package: ${target_dir}/ (image + artifacts + image-parameter_summary)"
     done <<< "${IMAGES}"
   fi
 }
