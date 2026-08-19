@@ -299,7 +299,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 format!("Profile: {}", app.profile),
                 format!("Machine: {}", app.machine),
                 format!("Hostname: {}", app.hostname_prefix),
-                format!("Image: {}", app.image_name),
+                format!("Image Name: {}", app.image_name),
                 format!("User: {}", app.robot_user),
                 format!("Password: {}", "****"),
                 format!("Tailscale: {}", if app.tailscale {"enabled"} else {"disabled"}),
@@ -397,24 +397,28 @@ fn main() -> Result<(), Box<dyn Error>> {
                             }
                         }
                         KeyCode::Char('e') => {
-                            app.message = "Exporting conf (no build)...".into();
-                            disable_raw_mode().ok();
-                            let mut args = Vec::new();
-                            args.push("--profile".to_string()); args.push(app.profile.clone());
-                            args.push("--no-build".to_string());
-                            args.push("--machine".to_string()); args.push(app.machine.clone());
-                            args.push("--image-name".to_string()); args.push(app.image_name.clone());
-                            args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
-                            args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
-                            args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                            if !app.tailscale_authkey.is_empty() { args.push("--authkey".to_string()); args.push(app.tailscale_authkey.clone()); }
-                            args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
-                            args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
-                            args.push("--mavlink-enabled".to_string()); args.push((if app.mavlink {"1"} else {"0"}).to_string());
-                            args.push("--opencr-enabled".to_string()); args.push((if app.opencr {"1"} else {"0"}).to_string());
-                            args.push("--outdir".to_string()); args.push("./output".to_string());
-                            match run_build_sh(&args) { Ok(code) => app.message = format!("Export finished (exit {})", code), Err(e) => app.message = format!("Export failed: {}", e), }
-                            enable_raw_mode().ok();
+                            if app.building {
+                                app.message = "Build or export already running".into();
+                            } else {
+                                app.message = "Starting export (no build)...".into();
+                                app.output.clear();
+                                app.building = true;
+                                let mut args = Vec::new();
+                                args.push("--profile".to_string()); args.push(app.profile.clone());
+                                args.push("--no-build".to_string());
+                                args.push("--machine".to_string()); args.push(app.machine.clone());
+                                args.push("--image-name".to_string()); args.push(app.image_name.clone());
+                                args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
+                                args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
+                                args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
+                                if !app.tailscale_authkey.is_empty() { args.push("--authkey".to_string()); args.push(app.tailscale_authkey.clone()); }
+                                args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
+                                args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
+                                args.push("--mavlink-enabled".to_string()); args.push((if app.mavlink {"1"} else {"0"}).to_string());
+                                args.push("--opencr-enabled".to_string()); args.push((if app.opencr {"1"} else {"0"}).to_string());
+                                args.push("--outdir".to_string()); args.push("./output".to_string());
+                                let _ = spawn_build(tx.clone(), args);
+                            }
                         }
                         KeyCode::Char('b') => {
                             if app.building {
