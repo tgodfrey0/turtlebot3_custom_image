@@ -19,3 +19,9 @@ Next steps
 2026-08-19T14:10:00+01:00 - Migration: removing legacy pixi/toml2conf artifacts
 - Deleting tools/toml2conf, scripts/, and TOML configs in configs/*.toml
 - Updating Makefile to kas-based targets and cleaning README.md references to pixi
+
+2026-08-19T14:14:00+01:00 - Removed Makefile; TUI is now primary interface
+
+2026-08-19T14:20:00+01:00 - Feature: build summaries
+- build.sh now writes a summary file under build-summaries/ after export (--no-build) or a successful build.
+- Summary includes profile, machine, image_name, user, masked password and authkey, hostname_prefix, feature toggles, kas command, and found images.
