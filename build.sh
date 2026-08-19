@@ -94,7 +94,9 @@ write_summary() {
   SUMMARY_DIR="${TOPDIR}/build-summaries"
   mkdir -p "${SUMMARY_DIR}"
   TS=$(date -u +"%Y%m%dT%H%M%SZ")
-  OUTFILE="${SUMMARY_DIR}/${TS}-${PROFILE}-${MACHINE_VAL:-${MACHINE}}.txt"
+  # include a short git hash to uniquely tag the build artifacts when available
+  GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "no-git")
+  OUTFILE="${SUMMARY_DIR}/${TS}-${PROFILE}-${MACHINE_VAL:-${MACHINE}}-${GIT_HASH}.txt"
 
   IMAGE_NAME_VAL=$(get_kv IMAGE_NAME)
   ROBOT_USER_VAL=$(get_kv ROBOT_USER)
@@ -152,7 +154,8 @@ write_summary() {
       else
         dir_name="${base_noext}"
       fi
-      target_dir="${OUTPUT_ROOT}/${dir_name}"
+      # append git hash to target dir for unique builds
+      target_dir="${OUTPUT_ROOT}/${dir_name}-${GIT_HASH}"
       mkdir -p "${target_dir}"
 
       # copy the main image as 'image' (strip extension)

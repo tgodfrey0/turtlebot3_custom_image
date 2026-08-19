@@ -13,13 +13,14 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Span, Spans};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Terminal;
 
 enum Mode {
     Normal,
     Editing { field: usize, buffer: String },
     Selecting { field: usize, options: Vec<String>, idx: usize },
+    Previewing { lines: Vec<String>, done: bool },
 }
 
 struct App {
@@ -185,6 +186,57 @@ fn spawn_build(tx: Sender<String>, args: Vec<String>) {
     });
 }
 
+fn spawn_preview(tx: Sender<String>, args: Vec<String>) {
+    thread::spawn(move || {
+        if let Some(build) = find_build_sh() {
+            let mut cmd = Command::new(build);
+            cmd.args(&args);
+            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+            match cmd.spawn() {
+                Ok(mut child) => {
+                    if let Some(out) = child.stdout.take() {
+                        let txo = tx.clone();
+                        thread::spawn(move || {
+                            let reader = BufReader::new(out);
+                            for line in reader.lines() {
+                                let l = line.unwrap_or_default();
+                                let _ = txo.send(l);
+                            }
+                        });
+                    }
+                    if let Some(err) = child.stderr.take() {
+                        let txe = tx.clone();
+                        thread::spawn(move || {
+                            let reader = BufReader::new(err);
+                            for line in reader.lines() {
+                                let l = line.unwrap_or_default();
+                                let _ = txe.send(l);
+                            }
+                        });
+                    }
+                    match child.wait() {
+                        Ok(status) => {
+                            let code = status.code().unwrap_or(-1);
+                            let _ = tx.send(format!("__PREVIEW_DONE__:{}", code));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(format!("Preview failed to wait: {}", e));
+                            let _ = tx.send("__PREVIEW_DONE__:-1".to_string());
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(format!("Failed to spawn preview: {}", e));
+                    let _ = tx.send("__PREVIEW_DONE__:-1".to_string());
+                }
+            }
+        } else {
+            let _ = tx.send("build.sh not found".to_string());
+            let _ = tx.send("__PREVIEW_DONE__:-1".to_string());
+        }
+    });
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -198,17 +250,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut last_tick = Instant::now();
 
     loop {
-        // drain receiver to update output
+        // drain receiver to update output and preview modal
         while let Ok(line) = rx.try_recv() {
             if line.starts_with("__BUILD_DONE__:") {
                 app.building = false;
                 if let Some(code) = line.split(':').nth(1) {
                     app.message = format!("Build finished (exit {})", code);
                 }
-            } else {
-                app.output.push(line);
+                } else if line.starts_with("__PREVIEW_DONE__:") {
+                    if let Some(code) = line.split(':').nth(1) {
+                        // mark preview done
+                        if let Mode::Previewing { lines: _, done } = &mut app.mode {
+                            *done = true;
+                            app.message = format!("Preview finished (exit {})", code);
+                        } else {
+                            app.message = format!("Preview finished (exit {})", code);
+                        }
+                    }
+                } else {
+                    // route line to preview modal if active, otherwise to output
+                    match &mut app.mode {
+                        Mode::Previewing { lines, .. } => lines.push(line),
+                        _ => app.output.push(line),
+                    }
+                }
             }
-        }
 
         terminal.draw(|f| {
             let size = f.size();
@@ -252,8 +318,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .highlight_style(Style::default().bg(Color::Green).fg(Color::Black));
             f.render_stateful_widget(param_list, top_cols[0], &mut list_state);
 
-            // actions box on the right (top area)
-            let actions = Paragraph::new(Spans::from(vec![Span::raw("Actions:\n p: preview  e: export  b: build  q: quit\n\nUse Enter to edit or select fields.")]))
+            // actions box on the right (top area) as a vertical list
+            let action_items = vec![
+                ListItem::new(Spans::from(Span::raw("p: preview"))),
+                ListItem::new(Spans::from(Span::raw("e: export"))),
+                ListItem::new(Spans::from(Span::raw("b: build"))),
+                ListItem::new(Spans::from(Span::raw("q: quit"))),
+                ListItem::new(Spans::from(Span::raw(""))),
+                ListItem::new(Spans::from(Span::raw("Enter: edit/select"))),
+                ListItem::new(Spans::from(Span::raw("Space: toggle"))),
+            ];
+            let actions = List::new(action_items)
                 .block(Block::default().borders(Borders::ALL).title("Actions"));
             f.render_widget(actions, top_cols[1]);
 
@@ -279,6 +354,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let p = Paragraph::new(buffer.as_str()).block(Block::default().borders(Borders::ALL).title("Edit"));
                     f.render_widget(p.alignment(Alignment::Left), area);
                 }
+                Mode::Previewing { lines, done } => {
+                    // popup occupying central area; show captured lines and status
+                    let area = ratatui::layout::Rect { x: size.width/10, y: size.height/10, width: size.width*8/10, height: size.height*8/10 };
+                    f.render_widget(Clear, area);
+                    let title = if *done { "Preview (done) - press Enter or Esc to close" } else { "Preview - press Enter or Esc to close" };
+                    let content = if lines.is_empty() { "(no output yet)".to_string() } else { lines.join("
+") };
+                    let p = Paragraph::new(content).block(Block::default().borders(Borders::ALL).title(title)).wrap(Wrap { trim: false });
+                    f.render_widget(p.alignment(Alignment::Left), area);
+                }
                 _ => {}
             }
         })?;
@@ -292,20 +377,24 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Down => { app.selected = (app.selected + 1) % app.items.len(); }
                         KeyCode::Up => { app.selected = if app.selected == 0 { app.items.len()-1 } else { app.selected -1 }; }
                         KeyCode::Char('p') => {
-                            app.message = "Running preview...".into();
-                            disable_raw_mode().ok();
-                            let mut args = Vec::new();
-                            args.push("--profile".to_string()); args.push(app.profile.clone());
-                            args.push("--machine".to_string()); args.push(app.machine.clone());
-                            args.push("--image-name".to_string()); args.push(app.image_name.clone());
-                            args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
-                            args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
-                            args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                            args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
-                            args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
-                            args.push("--dry-run".to_string());
-                            match run_build_sh(&args) { Ok(code) => app.message = format!("Preview finished (exit {}). See conf/local.conf", code), Err(e) => app.message = format!("Preview failed: {}", e), }
-                            enable_raw_mode().ok();
+                            // spawn a preview in a popup modal and stream its output into the modal
+                            if let Mode::Previewing { .. } = &app.mode {
+                                app.message = "Preview already running".into();
+                            } else {
+                                app.message = "Starting preview...".into();
+                                app.mode = Mode::Previewing { lines: Vec::new(), done: false };
+                                let mut args = Vec::new();
+                                args.push("--profile".to_string()); args.push(app.profile.clone());
+                                args.push("--machine".to_string()); args.push(app.machine.clone());
+                                args.push("--image-name".to_string()); args.push(app.image_name.clone());
+                                args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
+                                args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
+                                args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
+                                args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
+                                args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
+                                args.push("--dry-run".to_string());
+                                let _ = spawn_preview(tx.clone(), args);
+                            }
                         }
                         KeyCode::Char('e') => {
                             app.message = "Exporting conf (no build)...".into();
@@ -412,6 +501,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Backspace => { buffer.pop(); }
                         KeyCode::Char(c) => { buffer.push(c); }
                         _ => {}
+                    },
+                    Mode::Previewing { lines: _, done: _ } => match key.code {
+                        KeyCode::Esc | KeyCode::Enter => { app.mode = Mode::Normal; },
+                        _ => {},
                     },
                 }
             }
