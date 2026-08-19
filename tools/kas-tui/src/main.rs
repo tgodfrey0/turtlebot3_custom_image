@@ -21,6 +21,7 @@ enum Mode {
     Editing { field: usize, buffer: String },
     Selecting { field: usize, options: Vec<String>, idx: usize },
     Previewing { lines: Vec<String>, done: bool },
+    WifiAdd { ssid: String, pass: String, step: u8 },
 }
 
 struct App {
@@ -34,12 +35,8 @@ struct App {
     image_name: String,
     robot_user: String,
     robot_pass: String,
-    wifi_ssid_0: String,
-    wifi_pass_0: String,
-    wifi_ssid_1: String,
-    wifi_pass_1: String,
-    wifi_ssid_2: String,
-    wifi_pass_2: String,
+    // dynamic list of WiFi networks (pairs of ssid, pass)
+    networks: Vec<(String, String)>,
     tailscale: bool,
     tailscale_authkey: String,
     ros: bool,
@@ -66,12 +63,6 @@ impl Default for App {
                 "Image name".into(),
                 "User".into(),
                 "Password".into(),
-                "WiFi 0 SSID".into(),
-                "WiFi 0 Pass".into(),
-                "WiFi 1 SSID".into(),
-                "WiFi 1 Pass".into(),
-                "WiFi 2 SSID".into(),
-                "WiFi 2 Pass".into(),
                 "Tailscale".into(),
                 "Tailscale authkey".into(),
                 "ROS2".into(),
@@ -86,12 +77,7 @@ impl Default for App {
             image_name: "uav_companion".into(),
             robot_user: "robot".into(),
             robot_pass: "changeme".into(),
-            wifi_ssid_0: "".into(),
-            wifi_pass_0: "".into(),
-            wifi_ssid_1: "".into(),
-            wifi_pass_1: "".into(),
-            wifi_ssid_2: "".into(),
-            wifi_pass_2: "".into(),
+            networks: Vec::new(),
             tailscale: true,
             tailscale_authkey: "".into(),
             ros: false,
@@ -304,25 +290,32 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .split(chunks[0]);
 
             // render parameters as a single scrollable list in the left top area
-            let params = vec![
+            // base params
+            let mut params = vec![
                 format!("Profile: {}", app.profile),
                 format!("Machine: {}", app.machine),
                 format!("Hostname Prefix: {}", app.hostname_prefix),
                 format!("Image Name: {}", app.image_name),
                 format!("User: {}", app.robot_user),
                 format!("Password: {}", "****"),
-                format!("WiFi 0 SSID: {}", if app.wifi_ssid_0.is_empty() {"(none)"} else {&app.wifi_ssid_0}),
-                format!("WiFi 0 Pass: {}", if app.wifi_pass_0.is_empty() {"(none)"} else {"(set)"}),
-                format!("WiFi 1 SSID: {}", if app.wifi_ssid_1.is_empty() {"(none)"} else {&app.wifi_ssid_1}),
-                format!("WiFi 1 Pass: {}", if app.wifi_pass_1.is_empty() {"(none)"} else {"(set)"}),
-                format!("WiFi 2 SSID: {}", if app.wifi_ssid_2.is_empty() {"(none)"} else {&app.wifi_ssid_2}),
-                format!("WiFi 2 Pass: {}", if app.wifi_pass_2.is_empty() {"(none)"} else {"(set)"}),
-                format!("Tailscale: {}", if app.tailscale {"enabled"} else {"disabled"}),
-                format!("Tailscale key: {}", if app.tailscale_authkey.is_empty() {"(none)"} else {"(set)"}),
-                format!("ROS2: {}", if app.ros {"enabled"} else {"disabled"}),
-                format!("MAVLink: {}", if app.mavlink {"enabled"} else {"disabled"}),
-                format!("OpenCR: {}", if app.opencr {"enabled"} else {"disabled"}),
             ];
+
+            // append configured WiFi networks
+            if app.networks.is_empty() {
+                params.push("WiFi: (none configured)".into());
+            } else {
+                for (i, (s, p)) in app.networks.iter().enumerate() {
+                    params.push(format!("WiFi {}: {} ({})", i, s, if p.is_empty() {"no-pass"} else {"pass-set"}));
+                }
+            }
+
+            // rest of flags
+            params.push(format!("Tailscale: {}", if app.tailscale {"enabled"} else {"disabled"}));
+            params.push(format!("Tailscale key: {}", if app.tailscale_authkey.is_empty() {"(none)"} else {"(set)"}));
+            params.push(format!("ROS2: {}", if app.ros {"enabled"} else {"disabled"}));
+            params.push(format!("MAVLink: {}", if app.mavlink {"enabled"} else {"disabled"}));
+            params.push(format!("OpenCR: {}", if app.opencr {"enabled"} else {"disabled"}));
+
 
             // Build a scrollable list of parameters (stateful) so user can navigate and it will auto-scroll
             let param_items: Vec<ListItem> = params.iter().map(|p| ListItem::new(Spans::from(Span::raw(p.clone())))).collect();
@@ -338,6 +331,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 ListItem::new(Spans::from(Span::raw("p: preview"))),
                 ListItem::new(Spans::from(Span::raw("e: export"))),
                 ListItem::new(Spans::from(Span::raw("b: build"))),
+                ListItem::new(Spans::from(Span::raw("a: add WiFi"))),
                 ListItem::new(Spans::from(Span::raw("q: quit"))),
                 ListItem::new(Spans::from(Span::raw(""))),
                 ListItem::new(Spans::from(Span::raw("Enter: edit/select"))),
@@ -405,16 +399,26 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
                                 args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
                                 args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                                if !app.wifi_ssid_0.is_empty() { args.push("--wifi-ssid-0".to_string()); args.push(app.wifi_ssid_0.clone()); }
-                                if !app.wifi_pass_0.is_empty() { args.push("--wifi-pass-0".to_string()); args.push(app.wifi_pass_0.clone()); }
-                                if !app.wifi_ssid_1.is_empty() { args.push("--wifi-ssid-1".to_string()); args.push(app.wifi_ssid_1.clone()); }
-                                if !app.wifi_pass_1.is_empty() { args.push("--wifi-pass-1".to_string()); args.push(app.wifi_pass_1.clone()); }
-                                if !app.wifi_ssid_2.is_empty() { args.push("--wifi-ssid-2".to_string()); args.push(app.wifi_ssid_2.clone()); }
-                                if !app.wifi_pass_2.is_empty() { args.push("--wifi-pass-2".to_string()); args.push(app.wifi_pass_2.clone()); }
+                                // include configured networks
+                                for (i, (s, p)) in app.networks.iter().enumerate().take(3) {
+                                    args.push(format!("--wifi-ssid-{}", i)); args.push(s.clone());
+                                    if !p.is_empty() { args.push(format!("--wifi-pass-{}", i)); args.push(p.clone()); }
+                                }
                                 args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
                                 args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
                                 args.push("--dry-run".to_string());
                                 let _ = spawn_preview(tx.clone(), args);
+                            }
+                        }
+                        KeyCode::Char('a') => {
+                            // open add-wifi modal
+                            if let Mode::WifiAdd { .. } = &app.mode {
+                                app.message = "Add WiFi already open".into();
+                            } else if app.networks.len() >= 3 {
+                                app.message = "Maximum 3 WiFi networks already configured".into();
+                            } else {
+                                app.mode = Mode::WifiAdd { ssid: String::new(), pass: String::new(), step: 0 };
+                                app.message = "Enter WiFi SSID (type and press Enter)".into();
                             }
                         }
                         KeyCode::Char('e') => {
@@ -426,18 +430,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 app.building = true;
                                 let mut args = Vec::new();
                                 args.push("--profile".to_string()); args.push(app.profile.clone());
-                                args.push("--no-build".to_string());
-                                args.push("--machine".to_string()); args.push(app.machine.clone());
+                                args.push("--no-build".to_string()); args.push("--machine".to_string()); args.push(app.machine.clone());
                                 args.push("--image-name".to_string()); args.push(app.image_name.clone());
                                 args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
                                 args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
                                 args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                                if !app.wifi_ssid_0.is_empty() { args.push("--wifi-ssid-0".to_string()); args.push(app.wifi_ssid_0.clone()); }
-                                if !app.wifi_pass_0.is_empty() { args.push("--wifi-pass-0".to_string()); args.push(app.wifi_pass_0.clone()); }
-                                if !app.wifi_ssid_1.is_empty() { args.push("--wifi-ssid-1".to_string()); args.push(app.wifi_ssid_1.clone()); }
-                                if !app.wifi_pass_1.is_empty() { args.push("--wifi-pass-1".to_string()); args.push(app.wifi_pass_1.clone()); }
-                                if !app.wifi_ssid_2.is_empty() { args.push("--wifi-ssid-2".to_string()); args.push(app.wifi_ssid_2.clone()); }
-                                if !app.wifi_pass_2.is_empty() { args.push("--wifi-pass-2".to_string()); args.push(app.wifi_pass_2.clone()); }
+                                // include configured networks
+                                for (i, (s, p)) in app.networks.iter().enumerate().take(3) {
+                                    args.push(format!("--wifi-ssid-{}", i)); args.push(s.clone());
+                                    if !p.is_empty() { args.push(format!("--wifi-pass-{}", i)); args.push(p.clone()); }
+                                }
                                 if !app.tailscale_authkey.is_empty() { args.push("--authkey".to_string()); args.push(app.tailscale_authkey.clone()); }
                                 args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
                                 args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
@@ -461,12 +463,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
                                 args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
                                 args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                                if !app.wifi_ssid_0.is_empty() { args.push("--wifi-ssid-0".to_string()); args.push(app.wifi_ssid_0.clone()); }
-                                if !app.wifi_pass_0.is_empty() { args.push("--wifi-pass-0".to_string()); args.push(app.wifi_pass_0.clone()); }
-                                if !app.wifi_ssid_1.is_empty() { args.push("--wifi-ssid-1".to_string()); args.push(app.wifi_ssid_1.clone()); }
-                                if !app.wifi_pass_1.is_empty() { args.push("--wifi-pass-1".to_string()); args.push(app.wifi_pass_1.clone()); }
-                                if !app.wifi_ssid_2.is_empty() { args.push("--wifi-ssid-2".to_string()); args.push(app.wifi_ssid_2.clone()); }
-                                if !app.wifi_pass_2.is_empty() { args.push("--wifi-pass-2".to_string()); args.push(app.wifi_pass_2.clone()); }
+                                // include configured networks
+                                for (i, (s, p)) in app.networks.iter().enumerate().take(3) {
+                                    args.push(format!("--wifi-ssid-{}", i)); args.push(s.clone());
+                                    if !p.is_empty() { args.push(format!("--wifi-pass-{}", i)); args.push(p.clone()); }
+                                }
                                 if !app.tailscale_authkey.is_empty() { args.push("--authkey".to_string()); args.push(app.tailscale_authkey.clone()); }
                                 args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
                                 args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
@@ -492,22 +493,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 3 => { app.mode = Mode::Editing { field: 3, buffer: app.image_name.clone() } }
                                 4 => { app.mode = Mode::Editing { field: 4, buffer: app.robot_user.clone() } }
                                 5 => { app.mode = Mode::Editing { field: 5, buffer: app.robot_pass.clone() } }
-                                6 => { app.mode = Mode::Editing { field: 6, buffer: app.wifi_ssid_0.clone() } }
-                                7 => { app.mode = Mode::Editing { field: 7, buffer: app.wifi_pass_0.clone() } }
-                                8 => { app.mode = Mode::Editing { field: 8, buffer: app.wifi_ssid_1.clone() } }
-                                9 => { app.mode = Mode::Editing { field: 9, buffer: app.wifi_pass_1.clone() } }
-                                10 => { app.mode = Mode::Editing { field: 10, buffer: app.wifi_ssid_2.clone() } }
-                                11 => { app.mode = Mode::Editing { field: 11, buffer: app.wifi_pass_2.clone() } }
-                                13 => { app.mode = Mode::Editing { field: 13, buffer: app.tailscale_authkey.clone() } }
+                                7 => { app.mode = Mode::Editing { field: 7, buffer: app.tailscale_authkey.clone() } }
                                 _ => {}
                             }
                         }
                         KeyCode::Char(' ') => {
                             match app.selected {
-                                12 => { app.tailscale = !app.tailscale; }
-                                14 => { app.ros = !app.ros; }
-                                15 => { app.mavlink = !app.mavlink; }
-                                16 => { app.opencr = !app.opencr; }
+                                6 => { app.tailscale = !app.tailscale; }
+                                8 => { app.ros = !app.ros; }
+                                9 => { app.mavlink = !app.mavlink; }
+                                10 => { app.opencr = !app.opencr; }
                                 _ => {}
                             }
                         }
@@ -544,6 +539,34 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Backspace => { buffer.pop(); }
                         KeyCode::Char(c) => { buffer.push(c); }
                         _ => {}
+                    },
+                    Mode::WifiAdd { ssid, pass, step } => match key.code {
+                        KeyCode::Esc => { app.mode = Mode::Normal; app.message = "WiFi add cancelled".into(); },
+                        KeyCode::Enter => {
+                            if *step == 0 {
+                                // move to password step
+                                *step = 1;
+                                app.message = "Enter WiFi password (or leave empty) and press Enter to save".into();
+                            } else {
+                                // save network
+                                let s = ssid.trim().to_string();
+                                let p = pass.clone();
+                                if !s.is_empty() {
+                                    app.networks.push((s, p));
+                                    app.message = format!("Added WiFi network #{}", app.networks.len()-1);
+                                } else {
+                                    app.message = "SSID empty, not added".into();
+                                }
+                                app.mode = Mode::Normal;
+                            }
+                        }
+                        KeyCode::Backspace => {
+                            if *step == 0 { ssid.pop(); } else { pass.pop(); }
+                        }
+                        KeyCode::Char(c) => {
+                            if *step == 0 { ssid.push(c); } else { pass.push(c); }
+                        }
+                        _ => {},
                     },
                     Mode::Previewing { lines: _, done: _ } => match key.code {
                         KeyCode::Esc | KeyCode::Enter => { app.mode = Mode::Normal; },
