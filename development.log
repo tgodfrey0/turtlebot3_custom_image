@@ -1,0 +1,21 @@
+2026-08-19T13:53:01+01:00 - Plan created
+- Goal: migrate existing Yocto/bitbake configs to kas and add robot-specific profiles
+- Default features: wifi, tailscale, hostname, firstboot scripts; optional ROS2, MAVLink, OpenCR
+- Provide a Rust TUI (ratatui) scaffold to pick options and export conf/local.conf
+
+2026-08-19T13:53:10+01:00 - Actions taken
+- Created configs/kas/generic.yml and configs/kas/turtlebot3.yml
+- Verified existing conf/local.conf.template present and used it as base
+- Added build.sh wrapper to generate conf/local.conf and run kas build
+- Scaffolded tools/kas-tui (Cargo.toml + src/main.rs) with a non-interactive --export path
+- Added README-kas.md with quickstart notes
+
+Next steps
+- Implement full ratatui UI in tools/kas-tui; provide forms for machine/robot/extras and preview
+- Wire up the TUI to call build.sh or run kas directly
+- Add tests: kas dry-run and a minimal image build in CI
+- Optionally, migrate remaining TOML-based generator (toml2conf) into kas templating
+
+2026-08-19T14:10:00+01:00 - Migration: removing legacy pixi/toml2conf artifacts
+- Deleting tools/toml2conf, scripts/, and TOML configs in configs/*.toml
+- Updating Makefile to kas-based targets and cleaning README.md references to pixi
