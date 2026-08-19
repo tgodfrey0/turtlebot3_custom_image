@@ -1117,25 +1117,46 @@ def run_packer_build(cfg: BuildConfig, source_image_path: Path) -> None:
 
 
 class StageTracker:
-    """Simple stage progress tracker."""
+    """Stage progress tracker pinned to bottom of terminal."""
     def __init__(self, total: int):
         self.total = total
         self.current = 0
         self.start_time = None
+        self._enabled = True
+
+    def _save_cursor(self) -> None:
+        print("\033[s", end="", flush=True)
+
+    def _restore_cursor(self) -> None:
+        print("\033[u", end="", flush=True)
+
+    def _move_to_bottom(self) -> None:
+        print("\033[999;1H", end="", flush=True)
+
+    def _clear_line(self) -> None:
+        print("\033[2K", end="", flush=True)
 
     def next(self, name: str) -> None:
         self.current += 1
         import time
         self.start_time = time.time()
-        print(f"\n\033[1;36m[{self.current}/{self.total}] {name}\033[0m")
+        self._save_cursor()
+        self._move_to_bottom()
+        self._clear_line()
+        print(f"\033[1;36m[{self.current}/{self.total}] {name}\033[0m", end="", flush=True)
+        self._restore_cursor()
 
     def done(self, msg: str = "done") -> None:
         import time
+        self._save_cursor()
+        self._move_to_bottom()
+        self._clear_line()
         if self.start_time:
             elapsed = time.time() - self.start_time
-            print(f"    \033[1;32m✓ {msg} ({elapsed:.1f}s)\033[0m")
+            print(f"    \033[1;32m✓ {msg} ({elapsed:.1f}s)\033[0m", end="", flush=True)
         else:
-            print(f"    \033[1;32m✓ {msg}\033[0m")
+            print(f"    \033[1;32m✓ {msg}\033[0m", end="", flush=True)
+        self._restore_cursor()
 
 
 def main():
