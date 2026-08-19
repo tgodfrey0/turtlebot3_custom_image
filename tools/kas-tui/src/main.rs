@@ -1,9 +1,7 @@
 use std::error::Error;
-use std::io::{self, Write, BufRead, BufReader};
+use std::io::{self};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use std::sync::mpsc;
-use std::thread;
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode};
@@ -13,7 +11,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Span, Spans};
-use ratatui::widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 use ratatui::Terminal;
 
 enum Mode {
@@ -45,9 +43,6 @@ struct App {
     // UI/runtime
     output: Vec<String>,
     building: bool,
-    spinner: usize,
-    profiles: Vec<String>,
-    machines: Vec<String>,
 }
 
 impl Default for App {
@@ -85,9 +80,6 @@ impl Default for App {
             mode: Mode::Normal,
             output: Vec::new(),
             building: false,
-            spinner: 0,
-            profiles,
-            machines,
         }
     }
 }
@@ -196,7 +188,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             f.render_widget(preview, left_chunks[1]);
 
             // bottom output area is chunks[1]
-            let out_lines: Vec<Span> = app.output.iter().rev().take((chunks[1].height as usize - 2)).rev().map(|l| Span::raw(l.clone())).collect();
+            let out_lines: Vec<Span> = app.output.iter().rev().take(chunks[1].height as usize - 2).rev().map(|l| Span::raw(l.clone())).collect();
             let output_para = Paragraph::new(Spans::from(out_lines)).block(Block::default().borders(Borders::ALL).title(if app.building {"Output (building)..."} else {"Output"}));
             f.render_widget(output_para, chunks[1]);
 
