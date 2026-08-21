@@ -5,6 +5,21 @@ meta-openembedded/
 meta-ros/
 meta-raspberrypi/
 
+# Generated bitbake config (created from conf/local.conf.template by build.sh)
+conf/local.conf
+
+# Cloned upstream layers; custom meta-robot* layers stay tracked
+layers/*
+!layers/meta-robot
+!layers/meta-robot-turtlebot3
+
+# Logs
+build-output.log
+tui-output.log
+
+# Tool caches
+.pixi/
+
 # Build output
 build/
 tmp/
@@ -68,3 +83,4 @@ __pycache__/
 # Build artifacts from previous system
 output/
 output-*/
+exported-configs/

@@ -1,31 +1,31 @@
-repositories:
-  - name: poky
+header:
+  version: 14
+
+machine: raspberrypi4-64
+distro: poky
+
+repos:
+  poky:
+    path: layers/poky
     url: https://git.yoctoproject.org/git/poky
-    ref: kirkstone
+    branch: scarthgap
     layers:
-      - meta
-      - meta-poky
-      - meta-yocto-bsp
+      meta:
+      meta-poky:
+      meta-yocto-bsp:
 
-  - name: meta-openembedded
+  meta-openembedded:
+    path: layers/meta-openembedded
     url: https://github.com/openembedded/meta-openembedded.git
-    ref: kirkstone
+    branch: scarthgap
     layers:
-      - meta-oe
-      - meta-python
-      - meta-networking
+      meta-oe:
+      meta-python:
+      meta-networking:
 
-  - name: meta-raspberrypi
+  meta-raspberrypi:
+    path: layers/meta-raspberrypi
     url: https://git.yoctoproject.org/git/meta-raspberrypi
-    ref: kirkstone
+    branch: scarthgap
     layers:
-      - meta-raspberrypi
-
-  - name: meta-robot
-    url: file://../../layers/meta-robot
-    path: layers/meta-robot
-    # local layer (no ref required)
-
-# Notes:
-# - Default Yocto ref: kirkstone (latest LTS at time of scaffold). Change refs per-run if desired.
-# - This generic config enables core layers and the local meta-robot layer for migrated recipes.
+      .:

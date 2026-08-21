@@ -1,16 +1,18 @@
-includes:
-  - generic.yml
+header:
+  version: 14
+  includes:
+    - generic.yml
 
-repositories:
-  - name: meta-ros
-    url: https://github.com/ros/meta-ros.git
-    ref: kirkstone
-    layers:
-      - meta-ros
+machine: raspberrypi4-64
+distro: poky
 
-  - name: meta-robot-extra
-    url: file://../../layers/meta-robot
+repos:
+  meta-robot:
     path: layers/meta-robot
-    # Additional robot-specific layers/overrides can be added here
 
-# TurtleBot3 profile: includes generic config plus ROS and any robot-specific layers.
+  meta-ros:
+    path: layers/meta-ros
+    url: https://github.com/ros/meta-ros.git
+    branch: scarthgap
+    layers:
+      meta-ros:

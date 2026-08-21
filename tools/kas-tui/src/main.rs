@@ -1,5 +1,6 @@
 use std::error::Error;
-use std::io::{self, BufRead, BufReader};
+use std::fs::OpenOptions;
+use std::io::{self, BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{self, Sender};
@@ -16,6 +17,8 @@ use ratatui::text::{Span, Spans};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Terminal;
 
+const ROS_DISTROS: &[&str] = &["disabled", "foxy", "humble", "jazzy", "rolling"];
+
 enum Mode {
     Normal,
     Editing { field: usize, buffer: String },
@@ -25,54 +28,47 @@ enum Mode {
 }
 
 struct App {
-    items: Vec<String>,
     selected: usize,
 
-    // fields
     profile: String,
+    robot_model: String,
     machine: String,
     hostname_prefix: String,
     image_name: String,
     robot_user: String,
     robot_pass: String,
-    // dynamic list of WiFi networks (pairs of ssid, pass)
     networks: Vec<(String, String)>,
     tailscale: bool,
     tailscale_authkey: String,
-    ros: bool,
-    mavlink: bool,
-    opencr: bool,
+    ros_distro: Option<String>,
 
     message: String,
     mode: Mode,
 
-    // UI/runtime
     output: Vec<String>,
     building: bool,
+    build_pid: Option<u32>,
+    build_started: Option<Instant>,
+    build_exit_code: Option<i32>,
+    build_count: usize,
+    task_current: usize,
+    task_total: usize,
+    log_file: Option<std::fs::File>,
 }
 
 impl Default for App {
     fn default() -> Self {
-        let profiles = load_profiles();
         let machines = default_machines();
+        let log_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("build-output.log")
+            .ok();
         Self {
-            items: vec![
-                "Profile".into(),
-                "Machine".into(),
-                "Hostname prefix".into(),
-                "Image name".into(),
-                "User".into(),
-                "Password".into(),
-                "Tailscale".into(),
-                "Tailscale authkey".into(),
-                "ROS2".into(),
-                "MAVLink".into(),
-                "OpenCR".into(),
-                "Actions".into(),
-            ],
             selected: 0,
-            profile: profiles.get(0).cloned().unwrap_or_else(|| "generic".into()),
-            machine: machines.get(0).cloned().unwrap_or_else(|| "raspberrypi4-64".into()),
+            profile: "generic".into(),
+            robot_model: "generic".into(),
+            machine: machines.get(0).map(|(v, _)| v.clone()).unwrap_or_else(|| "raspberrypi4-64".into()),
             hostname_prefix: "robot".into(),
             image_name: "uav_companion".into(),
             robot_user: "robot".into(),
@@ -80,38 +76,221 @@ impl Default for App {
             networks: Vec::new(),
             tailscale: true,
             tailscale_authkey: "".into(),
-            ros: false,
-            mavlink: false,
-            opencr: false,
-            message: "Enter=edit, Space=toggle, p=preview, e=export, b=build, q=quit".into(),
+            ros_distro: None,
+            message: "Enter=edit/select, Space=toggle, i=import, a=add-wifi, p=preview, e=export, b=build, q=quit".into(),
             mode: Mode::Normal,
             output: Vec::new(),
             building: false,
+            build_pid: None,
+            build_started: None,
+            build_exit_code: None,
+            build_count: 0,
+            task_current: 0,
+            task_total: 0,
+            log_file,
         }
     }
 }
 
-fn load_profiles() -> Vec<String> {
-    let mut out = Vec::new();
-    if let Ok(entries) = std::fs::read_dir("configs/kas") {
-        for e in entries.flatten() {
-            if let Some(name) = e.path().file_stem().and_then(|s| s.to_str()) {
-                out.push(name.to_string());
+const BASE_FIELDS: usize = 7;
+const FLAG_FIELDS: usize = 3;
+
+impl App {
+    fn field_count(&self) -> usize {
+        BASE_FIELDS + self.networks.len() + FLAG_FIELDS
+    }
+
+    fn push_output(&mut self, line: String) {
+        if let Some(idx) = line.find("Running task ") {
+            let rest = &line[idx + 13..];
+            if let Some(end) = rest.find(" of ") {
+                if let Ok(cur) = rest[..end].parse::<usize>() {
+                    let after = &rest[end + 4..];
+                    if let Some(paren) = after.find(' ') {
+                        if let Ok(total) = after[..paren].parse::<usize>() {
+                            self.task_current = cur;
+                            self.task_total = total;
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(ref mut f) = self.log_file {
+            let _ = writeln!(f, "{}", line);
+        }
+        self.output.push(line);
+    }
+}
+
+fn default_machines() -> Vec<(String, String)> {
+    vec![
+        ("raspberrypi4-64".into(), "Raspberry Pi 4 (Pi 4, CM4, 400)".into()),
+        ("raspberrypi5".into(), "Raspberry Pi 5 (Pi 5, CM5, 500)".into()),
+    ]
+}
+
+fn machine_display_list() -> Vec<String> {
+    default_machines().iter().map(|(val, desc)| format!("{} — {}", val, desc)).collect()
+}
+
+fn machine_from_selection(selection: &str) -> String {
+    selection.split(" — ").next().unwrap_or(selection).to_string()
+}
+
+fn models_for_profile(profile: &str) -> Vec<String> {
+    match profile {
+        "turtlebot3" => vec!["burger", "waffle", "waffle_pi"].into_iter().map(|s| s.into()).collect(),
+        _ => vec!["generic".into()],
+    }
+}
+
+fn robot_types() -> Vec<String> {
+    vec!["generic".into(), "turtlebot3".into()]
+}
+
+fn generate_kas_config(app: &App) -> Result<(), String> {
+    let has_ros = app.ros_distro.is_some();
+    let is_tb3 = app.profile == "turtlebot3";
+
+    let mut content = String::new();
+    content.push_str("header:\n");
+    content.push_str("  version: 14\n\n");
+    content.push_str(&format!("machine: {}\n", app.machine));
+    content.push_str("distro: poky\n\n");
+    content.push_str("repos:\n");
+
+    content.push_str("  poky:\n");
+    content.push_str("    path: layers/poky\n");
+    content.push_str("    url: https://git.yoctoproject.org/git/poky\n");
+    content.push_str("    branch: scarthgap\n");
+    content.push_str("    layers:\n");
+    content.push_str("      meta:\n");
+    content.push_str("      meta-poky:\n");
+    content.push_str("      meta-yocto-bsp:\n\n");
+
+    content.push_str("  meta-openembedded:\n");
+    content.push_str("    path: layers/meta-openembedded\n");
+    content.push_str("    url: https://github.com/openembedded/meta-openembedded.git\n");
+    content.push_str("    branch: scarthgap\n");
+    content.push_str("    layers:\n");
+    content.push_str("      meta-oe:\n");
+    content.push_str("      meta-python:\n");
+    content.push_str("      meta-networking:\n\n");
+
+    content.push_str("  meta-raspberrypi:\n");
+    content.push_str("    path: layers/meta-raspberrypi\n");
+    content.push_str("    url: https://git.yoctoproject.org/git/meta-raspberrypi\n");
+    content.push_str("    branch: scarthgap\n");
+    content.push_str("    layers:\n");
+    content.push_str("      .:\n\n");
+
+    content.push_str("  meta-robot:\n");
+    content.push_str("    path: layers/meta-robot\n\n");
+
+    if has_ros {
+        content.push_str("  meta-ros:\n");
+        content.push_str("    path: layers/meta-ros\n");
+        content.push_str("    url: https://github.com/ros/meta-ros.git\n");
+        content.push_str("    branch: scarthgap\n");
+        content.push_str("    layers:\n");
+        content.push_str("      meta-ros:\n\n");
+    }
+
+    if is_tb3 {
+        content.push_str("  meta-robot-turtlebot3:\n");
+        content.push_str("    path: layers/meta-robot-turtlebot3\n\n");
+    }
+
+    std::fs::write("configs/kas/build-config.yml", content)
+        .map_err(|e| format!("Failed to write kas config: {}", e))?;
+    Ok(())
+}
+
+fn load_config_from_file(path: &str, app: &mut App) -> Result<String, String> {
+    let content = std::fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+    
+    app.networks.clear();
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("kas_command") || line.starts_with("git_hash") || line.starts_with("timestamp") {
+            continue;
+        }
+        
+        if let Some(idx) = line.find(':') {
+            let key = line[..idx].trim();
+            let val = line[idx+1..].trim();
+            
+            match key {
+                "profile" => app.profile = val.to_string(),
+                "machine" => app.machine = val.to_string(),
+                "robot_type" => app.robot_model = val.to_string(),
+                "image_name" => app.image_name = val.to_string(),
+                "hostname_prefix" => app.hostname_prefix = val.to_string(),
+                "robot_user" => app.robot_user = val.to_string(),
+                "robot_pass" => app.robot_pass = val.to_string(),
+                "tailscale_enabled" => app.tailscale = val == "1",
+                "ros_distro" => {
+                    if val == "disabled" || val.is_empty() {
+                        app.ros_distro = None;
+                    } else {
+                        app.ros_distro = Some(val.to_string());
+                    }
+                }
+                k if k.starts_with("wifi_") && k.ends_with("_ssid") => {
+                    if !val.is_empty() {
+                        let idx: usize = k[5..].trim_end_matches("_ssid").parse().unwrap_or(0);
+                        while app.networks.len() <= idx {
+                            app.networks.push((String::new(), String::new()));
+                        }
+                        app.networks[idx].0 = val.to_string();
+                    }
+                }
+                k if k.starts_with("wifi_") && k.ends_with("_pass") => {
+                    let idx: usize = k[5..].trim_end_matches("_pass").parse().unwrap_or(0);
+                    while app.networks.len() <= idx {
+                        app.networks.push((String::new(), String::new()));
+                    }
+                    app.networks[idx].1 = val.to_string();
+                }
+                _ => {}
             }
         }
     }
-    if out.is_empty() { out.push("generic".into()); }
-    out
+
+    app.networks.retain(|(s, _)| !s.is_empty());
+    
+    Ok(format!("Imported configuration from {}", path))
 }
 
-fn default_machines() -> Vec<String> {
-    vec![
-        "raspberrypi4-64".into(),
-        "raspberrypi5".into(),
-        "raspberrypi-cm5".into(),
-        "raspberrypi-cm5-io-board".into(),
-        "jetson-orin".into(),
-    ]
+fn zenity_file() -> Option<String> {
+    let cwd = std::env::current_dir().ok()?;
+    let start = format!("{}/", cwd.to_string_lossy());
+    let out = Command::new("zenity")
+        .args(&["--file-selection", &format!("--filename={}", start), "--title=Select config file"])
+        .output()
+        .ok()?;
+    if out.status.success() {
+        let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if path.is_empty() { None } else { Some(path) }
+    } else {
+        None
+    }
+}
+
+fn zenity_dir() -> Option<String> {
+    let cwd = std::env::current_dir().ok()?;
+    let start = format!("{}/", cwd.to_string_lossy());
+    let out = Command::new("zenity")
+        .args(&["--file-selection", "--directory", &format!("--filename={}", start), "--title=Select output directory"])
+        .output()
+        .ok()?;
+    if out.status.success() {
+        let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if path.is_empty() { None } else { Some(path) }
+    } else {
+        None
+    }
 }
 
 fn find_build_sh() -> Option<PathBuf> {
@@ -135,7 +314,8 @@ fn spawn_build(tx: Sender<String>, args: Vec<String>) {
             cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
             match cmd.spawn() {
                 Ok(mut child) => {
-                    // stdout
+                    let pid = child.id();
+                    let _ = tx.send(format!("__BUILD_PID__:{}", pid));
                     if let Some(out) = child.stdout.take() {
                         let txo = tx.clone();
                         thread::spawn(move || {
@@ -146,7 +326,6 @@ fn spawn_build(tx: Sender<String>, args: Vec<String>) {
                             }
                         });
                     }
-                    // stderr
                     if let Some(err) = child.stderr.take() {
                         let txe = tx.clone();
                         thread::spawn(move || {
@@ -157,7 +336,6 @@ fn spawn_build(tx: Sender<String>, args: Vec<String>) {
                             }
                         });
                     }
-                    // wait
                     match child.wait() {
                         Ok(status) => {
                             let code = status.code().unwrap_or(-1);
@@ -232,6 +410,61 @@ fn spawn_preview(tx: Sender<String>, args: Vec<String>) {
     });
 }
 
+fn run_zenity<F>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, f: F) -> Option<String>
+where
+    F: FnOnce() -> Option<String>,
+{
+    disable_raw_mode().ok()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    ).ok()?;
+    terminal.show_cursor().ok()?;
+
+    let result = f();
+
+    enable_raw_mode().ok()?;
+    execute!(
+        terminal.backend_mut(),
+        EnterAlternateScreen,
+        EnableMouseCapture
+    ).ok()?;
+    terminal.hide_cursor().ok()?;
+    terminal.clear().ok()?;
+
+    result
+}
+
+fn build_common_args(app: &App) -> Vec<String> {
+    let mut args = Vec::new();
+    args.push("--config".into()); args.push("configs/kas/build-config.yml".into());
+    args.push("--machine".into()); args.push(app.machine.clone());
+    args.push("--image-name".into()); args.push(app.image_name.clone());
+    args.push("--hostname".into()); args.push(app.hostname_prefix.clone());
+    args.push("--robot-model".into()); args.push(app.robot_model.clone());
+    args.push("--robot-user".into()); args.push(app.robot_user.clone());
+    args.push("--robot-pass".into()); args.push(app.robot_pass.clone());
+    for (s, p) in app.networks.iter() {
+        args.push("--wifi".into()); args.push(s.clone()); args.push(p.clone());
+    }
+    if !app.tailscale_authkey.is_empty() { args.push("--authkey".into()); args.push(app.tailscale_authkey.clone()); }
+    args.push("--tailscale-enabled".into()); args.push((if app.tailscale {"1"} else {"0"}).into());
+    if let Some(ref distro) = app.ros_distro {
+        args.push("--ros-distro".into()); args.push(distro.clone());
+    }
+    let opencr = app.profile == "turtlebot3";
+    args.push("--opencr-enabled".into()); args.push((if opencr {"1"} else {"0"}).into());
+    args
+}
+
+fn build_export_args(app: &App, outdir: &str) -> Vec<String> {
+    let mut args = build_common_args(app);
+    args.push("--no-build".into());
+    args.push("--outdir".into()); args.push(outdir.into());
+    args
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -245,54 +478,65 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut last_tick = Instant::now();
 
     loop {
-        // drain receiver to update output and preview modal
         while let Ok(line) = rx.try_recv() {
-            if line.starts_with("__BUILD_DONE__:") {
+            if line.starts_with("__BUILD_PID__:") {
+                if let Some(pid) = line.split(':').nth(1).and_then(|s| s.parse().ok()) {
+                    app.build_pid = Some(pid);
+                }
+            } else if line.starts_with("__BUILD_DONE__:") {
                 app.building = false;
-                if let Some(code) = line.split(':').nth(1) {
+                app.build_pid = None;
+                app.build_started = None;
+                app.build_count += 1;
+                if let Some(code) = line.split(':').nth(1).and_then(|s| s.parse().ok()) {
+                    app.build_exit_code = Some(code);
                     app.message = format!("Build finished (exit {})", code);
                 }
-                } else if line.starts_with("__PREVIEW_DONE__:") {
-                    if let Some(code) = line.split(':').nth(1) {
-                        // mark preview done
-                        if let Mode::Previewing { lines: _, done } = &mut app.mode {
-                            *done = true;
-                            app.message = format!("Preview finished (exit {})", code);
-                        } else {
-                            app.message = format!("Preview finished (exit {})", code);
-                        }
-                    }
-                } else {
-                    // route line to preview modal if active, otherwise to output
-                    match &mut app.mode {
-                        Mode::Previewing { lines, .. } => lines.push(line),
-                        _ => app.output.push(line),
+            } else if line.starts_with("__PREVIEW_DONE__:") {
+                if let Some(code) = line.split(':').nth(1) {
+                    if let Mode::Previewing { lines: _, done } = &mut app.mode {
+                        *done = true;
+                        app.message = format!("Preview finished (exit {})", code);
+                    } else {
+                        app.message = format!("Preview finished (exit {})", code);
                     }
                 }
+            } else {
+                match &mut app.mode {
+                    Mode::Previewing { lines, .. } => lines.push(line),
+                    _ => app.push_output(line),
+                }
             }
+        }
 
         terminal.draw(|f| {
             let size = f.size();
-            // draw grey background
             let bg = Paragraph::new("").block(Block::default().style(Style::default().bg(Color::Rgb(40,40,40))));
             f.render_widget(bg, size);
 
-            // Layout: top 1/3 for controls, bottom 2/3 for full-width output
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Percentage(33), Constraint::Percentage(67)].as_ref())
                 .split(size);
 
-            // Top area split: left = 66% (parameters, scrollable), right = 34% (actions)
             let top_cols = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(66), Constraint::Percentage(34)].as_ref())
                 .split(chunks[0]);
 
-            // render parameters as a single scrollable list in the left top area
-            // base params
+            let right_split = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+                .split(top_cols[1]);
+
+            let ros_label = match &app.ros_distro {
+                None => "disabled".to_string(),
+                Some(d) => d.clone(),
+            };
+
             let mut params = vec![
-                format!("Profile: {}", app.profile),
+                format!("Robot: {}", app.profile),
+                format!("Robot Model: {}", app.robot_model),
                 format!("Machine: {}", app.machine),
                 format!("Hostname Prefix: {}", app.hostname_prefix),
                 format!("Image Name: {}", app.image_name),
@@ -300,24 +544,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 format!("Password: {}", "****"),
             ];
 
-            // append configured WiFi networks
-            if app.networks.is_empty() {
-                params.push("WiFi: (none configured)".into());
-            } else {
-                for (i, (s, p)) in app.networks.iter().enumerate() {
-                    params.push(format!("WiFi {}: {} ({})", i, s, if p.is_empty() {"no-pass"} else {"pass-set"}));
-                }
+            for (i, (s, p)) in app.networks.iter().enumerate() {
+                params.push(format!("WiFi {}: {} ({})", i, s, if p.is_empty() {"no-pass"} else {"pass-set"}));
             }
 
-            // rest of flags
             params.push(format!("Tailscale: {}", if app.tailscale {"enabled"} else {"disabled"}));
             params.push(format!("Tailscale key: {}", if app.tailscale_authkey.is_empty() {"(none)"} else {"(set)"}));
-            params.push(format!("ROS2: {}", if app.ros {"enabled"} else {"disabled"}));
-            params.push(format!("MAVLink: {}", if app.mavlink {"enabled"} else {"disabled"}));
-            params.push(format!("OpenCR: {}", if app.opencr {"enabled"} else {"disabled"}));
+            params.push(format!("ROS2: {}", ros_label));
 
-
-            // Build a scrollable list of parameters (stateful) so user can navigate and it will auto-scroll
             let param_items: Vec<ListItem> = params.iter().map(|p| ListItem::new(Spans::from(Span::raw(p.clone())))).collect();
             let mut list_state = ratatui::widgets::ListState::default();
             if app.selected < params.len() { list_state.select(Some(app.selected)); } else { list_state.select(None); }
@@ -326,11 +560,49 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .highlight_style(Style::default().bg(Color::Green).fg(Color::Black));
             f.render_stateful_widget(param_list, top_cols[0], &mut list_state);
 
-            // actions box on the right (top area) as a vertical list
+            let progress_line = if app.task_total > 0 {
+                let pct = (app.task_current * 100) / app.task_total;
+                let bar_width = 20;
+                let filled = (app.task_current * bar_width) / app.task_total;
+                let empty = bar_width - filled;
+                let bar: String = "#".repeat(filled) + &"-".repeat(empty);
+                format!("[{}] {}/{} ({}%)", bar, app.task_current, app.task_total, pct)
+            } else if app.building {
+                "Waiting for tasks...".to_string()
+            } else {
+                "".to_string()
+            };
+            let status_line = if app.building {
+                match app.build_started {
+                    Some(start) => {
+                        let elapsed = start.elapsed();
+                        let mins = elapsed.as_secs() / 60;
+                        let secs = elapsed.as_secs() % 60;
+                        format!("Building...  {:02}:{:02}", mins, secs)
+                    }
+                    None => "Building...".to_string(),
+                }
+            } else {
+                match app.build_exit_code {
+                    Some(0) => "Last build: OK".to_string(),
+                    Some(n) => format!("Last build: failed ({})", n),
+                    None => "Idle".to_string(),
+                }
+            };
+            let mut stats_text = vec![
+                Spans::from(Span::raw(format!("Status: {}", status_line))),
+            ];
+            if !progress_line.is_empty() {
+                stats_text.push(Spans::from(Span::raw(format!("Tasks: {}", progress_line))));
+            }
+            let stats_para = Paragraph::new(stats_text).block(Block::default().borders(Borders::ALL).title("Stats"));
+            f.render_widget(stats_para, right_split[0]);
+
             let action_items = vec![
                 ListItem::new(Spans::from(Span::raw("p: preview"))),
                 ListItem::new(Spans::from(Span::raw("e: export"))),
                 ListItem::new(Spans::from(Span::raw("b: build"))),
+                ListItem::new(Spans::from(Span::raw("i: import"))),
                 ListItem::new(Spans::from(Span::raw("a: add WiFi"))),
                 ListItem::new(Spans::from(Span::raw("q: quit"))),
                 ListItem::new(Spans::from(Span::raw(""))),
@@ -339,19 +611,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             ];
             let actions = List::new(action_items)
                 .block(Block::default().borders(Borders::ALL).title("Actions"));
-            f.render_widget(actions, top_cols[1]);
+            f.render_widget(actions, right_split[1]);
 
-            // bottom output area is chunks[1] (full width)
-            let out_lines: Vec<Span> = app.output.iter().rev().take(chunks[1].height as usize - 2).rev().map(|l| Span::raw(l.clone())).collect();
-            let output_para = Paragraph::new(Spans::from(out_lines)).block(Block::default().borders(Borders::ALL).title(if app.building {"Output (building)..."} else {"Output"})).wrap(Wrap { trim: true });
+            let out_lines: Vec<Spans> = app.output.iter().rev().take(chunks[1].height as usize - 2).rev().map(|l| Spans::from(Span::raw(l.clone()))).collect();
+            let output_para = Paragraph::new(out_lines).block(Block::default().borders(Borders::ALL).title(if app.building {"Output (building)..."} else {"Output"})).wrap(Wrap { trim: true });
             f.render_widget(output_para, chunks[1]);
 
-            // draw modal if selecting or editing
             match &app.mode {
                 Mode::Selecting { field: _, options, idx } => {
                     let area = ratatui::layout::Rect { x: size.width/8, y: size.height/6, width: size.width*3/4, height: size.height*2/5 };
-                    f.render_widget(Clear, area); // clear background
-                    // render options in a list
+                    f.render_widget(Clear, area);
                     let opts: Vec<ListItem> = options.iter().map(|o| ListItem::new(Spans::from(Span::raw(o)))).collect();
                     let mut s = ratatui::widgets::ListState::default(); s.select(Some(*idx));
                     let sel = List::new(opts).block(Block::default().borders(Borders::ALL).title("Select option")).highlight_style(Style::default().bg(Color::Green).fg(Color::Black));
@@ -363,13 +632,27 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let p = Paragraph::new(buffer.as_str()).block(Block::default().borders(Borders::ALL).title("Edit"));
                     f.render_widget(p.alignment(Alignment::Left), area);
                 }
+                Mode::WifiAdd { ssid, pass, step } => {
+                    let w = std::cmp::min(60, size.width.saturating_sub(10));
+                    let h = 7;
+                    let area = ratatui::layout::Rect {
+                        x: (size.width.saturating_sub(w)) / 2,
+                        y: (size.height.saturating_sub(h)) / 2,
+                        width: w,
+                        height: h,
+                    };
+                    f.render_widget(Clear, area);
+                    let title = if *step == 0 { "Add WiFi - SSID (type and press Enter)" } else { "Add WiFi - Password (type and press Enter)" };
+                    let content = if *step == 0 { ssid.clone() } else { pass.clone() };
+                    let display = if content.is_empty() { "(empty)".to_string() } else { content };
+                    let p = Paragraph::new(display).block(Block::default().borders(Borders::ALL).title(title));
+                    f.render_widget(p.alignment(Alignment::Left), area);
+                }
                 Mode::Previewing { lines, done } => {
-                    // popup occupying central area; show captured lines and status
                     let area = ratatui::layout::Rect { x: size.width/10, y: size.height/10, width: size.width*8/10, height: size.height*8/10 };
                     f.render_widget(Clear, area);
                     let title = if *done { "Preview (done) - press Enter or Esc to close" } else { "Preview - press Enter or Esc to close" };
-                    let content = if lines.is_empty() { "(no output yet)".to_string() } else { lines.join("
-") };
+                    let content = if lines.is_empty() { "(no output yet)".to_string() } else { lines.join("\n") };
                     let p = Paragraph::new(content).block(Block::default().borders(Borders::ALL).title(title)).wrap(Wrap { trim: false });
                     f.render_widget(p.alignment(Alignment::Left), area);
                 }
@@ -382,127 +665,137 @@ fn main() -> Result<(), Box<dyn Error>> {
             if let Event::Key(key) = event::read()? {
                 match &mut app.mode {
                     Mode::Normal => match key.code {
-                        KeyCode::Char('q') => break,
-                        KeyCode::Down => { app.selected = (app.selected + 1) % app.items.len(); }
-                        KeyCode::Up => { app.selected = if app.selected == 0 { app.items.len()-1 } else { app.selected -1 }; }
-                        KeyCode::Char('p') => {
-                            // spawn a preview in a popup modal and stream its output into the modal
-                            if let Mode::Previewing { .. } = &app.mode {
-                                app.message = "Preview already running".into();
-                            } else {
-                                app.message = "Starting preview...".into();
-                                app.mode = Mode::Previewing { lines: Vec::new(), done: false };
-                                let mut args = Vec::new();
-                                args.push("--profile".to_string()); args.push(app.profile.clone());
-                                args.push("--machine".to_string()); args.push(app.machine.clone());
-                                args.push("--image-name".to_string()); args.push(app.image_name.clone());
-                                args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
-                                args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
-                                args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                                // include configured networks
-                                for (i, (s, p)) in app.networks.iter().enumerate().take(3) {
-                                    args.push(format!("--wifi-ssid-{}", i)); args.push(s.clone());
-                                    if !p.is_empty() { args.push(format!("--wifi-pass-{}", i)); args.push(p.clone()); }
+                        KeyCode::Char('q') => {
+                            if let Some(pid) = app.build_pid {
+                                // Kill the entire process group
+                                if let Ok(out) = Command::new("ps").args(["-o", "pgid=", "-p", &pid.to_string()]).output() {
+                                    if let Ok(pgid) = String::from_utf8_lossy(&out.stdout).trim().parse::<i32>() {
+                                        let _ = Command::new("kill").args(["-TERM", &format!("-{}", pgid)]).status();
+                                    }
                                 }
-                                args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
-                                args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
-                                args.push("--dry-run".to_string());
-                                let _ = spawn_preview(tx.clone(), args);
+                                // Fallback: kill the process directly
+                                let _ = Command::new("kill").args(["-TERM", &pid.to_string()]).status();
+                                app.message = "Killed build process".into();
                             }
+                            break;
                         }
+                        KeyCode::Down => { app.selected = (app.selected + 1) % app.field_count(); }
+                        KeyCode::Up => { app.selected = if app.selected == 0 { app.field_count()-1 } else { app.selected -1 }; }
                         KeyCode::Char('a') => {
-                            // open add-wifi modal
-                            if let Mode::WifiAdd { .. } = &app.mode {
-                                app.message = "Add WiFi already open".into();
-                            } else if app.networks.len() >= 3 {
+                            if app.networks.len() >= 3 {
                                 app.message = "Maximum 3 WiFi networks already configured".into();
                             } else {
                                 app.mode = Mode::WifiAdd { ssid: String::new(), pass: String::new(), step: 0 };
                                 app.message = "Enter WiFi SSID (type and press Enter)".into();
                             }
                         }
+                        KeyCode::Char('i') => {
+                            if let Some(path) = run_zenity(&mut terminal, zenity_file) {
+                                match load_config_from_file(&path, &mut app) {
+                                    Ok(msg) => app.message = msg,
+                                    Err(e) => app.message = format!("Import failed: {}", e),
+                                }
+                            } else {
+                                app.message = "Import cancelled".into();
+                            }
+                        }
+                        KeyCode::Char('p') => {
+                            if let Mode::Previewing { .. } = &app.mode {
+                                app.message = "Preview already running".into();
+                            } else {
+                                app.message = "Generating config and starting preview...".into();
+                                if let Err(e) = generate_kas_config(&app) {
+                                    app.message = format!("Config generation failed: {}", e);
+                                } else {
+                                    app.mode = Mode::Previewing { lines: Vec::new(), done: false };
+                                    let mut args = build_common_args(&app);
+                                    args.push("--dry-run".into());
+                                    let _ = spawn_preview(tx.clone(), args);
+                                }
+                            }
+                        }
                         KeyCode::Char('e') => {
                             if app.building {
                                 app.message = "Build or export already running".into();
-                            } else {
-                                app.message = "Starting export (no build)...".into();
-                                app.output.clear();
-                                app.building = true;
-                                let mut args = Vec::new();
-                                args.push("--profile".to_string()); args.push(app.profile.clone());
-                                args.push("--no-build".to_string()); args.push("--machine".to_string()); args.push(app.machine.clone());
-                                args.push("--image-name".to_string()); args.push(app.image_name.clone());
-                                args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
-                                args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
-                                args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                                // include configured networks
-                                for (i, (s, p)) in app.networks.iter().enumerate().take(3) {
-                                    args.push(format!("--wifi-ssid-{}", i)); args.push(s.clone());
-                                    if !p.is_empty() { args.push(format!("--wifi-pass-{}", i)); args.push(p.clone()); }
+                            } else if let Some(outdir) = run_zenity(&mut terminal, zenity_dir) {
+                                app.message = "Generating config and starting export...".into();
+                                if let Err(e) = generate_kas_config(&app) {
+                                    app.message = format!("Config generation failed: {}", e);
+                                } else {
+                                    app.output.clear();
+                                    app.building = true;
+                                    app.build_started = Some(Instant::now());
+                                    app.task_current = 0;
+                                    app.task_total = 0;
+                                    let args = build_export_args(&app, &outdir);
+                                    let _ = spawn_build(tx.clone(), args);
                                 }
-                                if !app.tailscale_authkey.is_empty() { args.push("--authkey".to_string()); args.push(app.tailscale_authkey.clone()); }
-                                args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
-                                args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
-                                args.push("--mavlink-enabled".to_string()); args.push((if app.mavlink {"1"} else {"0"}).to_string());
-                                args.push("--opencr-enabled".to_string()); args.push((if app.opencr {"1"} else {"0"}).to_string());
-                                args.push("--outdir".to_string()); args.push("./output".to_string());
-                                let _ = spawn_build(tx.clone(), args);
+                            } else {
+                                app.message = "Export cancelled".into();
                             }
                         }
                         KeyCode::Char('b') => {
                             if app.building {
                                 app.message = "Build already running".into();
                             } else {
-                                app.message = "Starting build...".into();
-                                app.output.clear();
-                                app.building = true;
-                                let mut args = Vec::new();
-                                args.push("--profile".to_string()); args.push(app.profile.clone());
-                                args.push("--machine".to_string()); args.push(app.machine.clone());
-                                args.push("--image-name".to_string()); args.push(app.image_name.clone());
-                                args.push("--hostname".to_string()); args.push(app.hostname_prefix.clone());
-                                args.push("--robot-user".to_string()); args.push(app.robot_user.clone());
-                                args.push("--robot-pass".to_string()); args.push(app.robot_pass.clone());
-                                // include configured networks
-                                for (i, (s, p)) in app.networks.iter().enumerate().take(3) {
-                                    args.push(format!("--wifi-ssid-{}", i)); args.push(s.clone());
-                                    if !p.is_empty() { args.push(format!("--wifi-pass-{}", i)); args.push(p.clone()); }
+                                app.message = "Generating config and starting build...".into();
+                                if let Err(e) = generate_kas_config(&app) {
+                                    app.message = format!("Config generation failed: {}", e);
+                                } else {
+                                    app.output.clear();
+                                    app.building = true;
+                                    app.build_started = Some(Instant::now());
+                                    app.task_current = 0;
+                                    app.task_total = 0;
+                                    let mut args = build_common_args(&app);
+                                    args.push("--outdir".into()); args.push("./output".into());
+                                    let _ = spawn_build(tx.clone(), args);
                                 }
-                                if !app.tailscale_authkey.is_empty() { args.push("--authkey".to_string()); args.push(app.tailscale_authkey.clone()); }
-                                args.push("--tailscale-enabled".to_string()); args.push((if app.tailscale {"1"} else {"0"}).to_string());
-                                args.push("--ros-enabled".to_string()); args.push((if app.ros {"1"} else {"0"}).to_string());
-                                args.push("--mavlink-enabled".to_string()); args.push((if app.mavlink {"1"} else {"0"}).to_string());
-                                args.push("--opencr-enabled".to_string()); args.push((if app.opencr {"1"} else {"0"}).to_string());
-                                args.push("--outdir".to_string()); args.push("./output".to_string());
-                                let _ = spawn_build(tx.clone(), args);
-                                // keep in raw mode while build runs; main loop will collect output
                             }
                         }
                         KeyCode::Enter => {
-                            // enter editing or selecting depending on field
+                            let wifi_count = app.networks.len();
+                            let flags_base = BASE_FIELDS + wifi_count;
                             match app.selected {
                                 0 => {
-                                    let opts = load_profiles();
+                                    let opts = robot_types();
                                     app.mode = Mode::Selecting { field: 0, options: opts, idx: 0 };
                                 }
                                 1 => {
-                                    let opts = default_machines();
+                                    let opts = models_for_profile(&app.profile);
                                     app.mode = Mode::Selecting { field: 1, options: opts, idx: 0 };
                                 }
-                                2 => { app.mode = Mode::Editing { field: 2, buffer: app.hostname_prefix.clone() } }
-                                3 => { app.mode = Mode::Editing { field: 3, buffer: app.image_name.clone() } }
-                                4 => { app.mode = Mode::Editing { field: 4, buffer: app.robot_user.clone() } }
-                                5 => { app.mode = Mode::Editing { field: 5, buffer: app.robot_pass.clone() } }
-                                7 => { app.mode = Mode::Editing { field: 7, buffer: app.tailscale_authkey.clone() } }
+                                2 => {
+                                    let opts = machine_display_list();
+                                    app.mode = Mode::Selecting { field: 2, options: opts, idx: 0 };
+                                }
+                                3 => { app.mode = Mode::Editing { field: 3, buffer: app.hostname_prefix.clone() } }
+                                4 => { app.mode = Mode::Editing { field: 4, buffer: app.image_name.clone() } }
+                                5 => { app.mode = Mode::Editing { field: 5, buffer: app.robot_user.clone() } }
+                                6 => { app.mode = Mode::Editing { field: 6, buffer: app.robot_pass.clone() } }
+                                i if i >= BASE_FIELDS && i < flags_base => {}
+                                i if i == flags_base + 1 => { app.mode = Mode::Editing { field: i, buffer: app.tailscale_authkey.clone() } }
+                                i if i == flags_base + 2 => {
+                                    let current = app.ros_distro.as_deref().unwrap_or("disabled");
+                                    let idx = ROS_DISTROS.iter().position(|&d| d == current).unwrap_or(0);
+                                    let opts: Vec<String> = ROS_DISTROS.iter().map(|s| s.to_string()).collect();
+                                    app.mode = Mode::Selecting { field: i, options: opts, idx };
+                                }
                                 _ => {}
                             }
                         }
                         KeyCode::Char(' ') => {
+                            let wifi_count = app.networks.len();
+                            let flags_base = BASE_FIELDS + wifi_count;
                             match app.selected {
-                                6 => { app.tailscale = !app.tailscale; }
-                                8 => { app.ros = !app.ros; }
-                                9 => { app.mavlink = !app.mavlink; }
-                                10 => { app.opencr = !app.opencr; }
+                                i if i == flags_base => { app.tailscale = !app.tailscale; }
+                                i if i == flags_base + 2 => {
+                                    let opts: Vec<String> = ROS_DISTROS.iter().map(|s| s.to_string()).collect();
+                                    let current = app.ros_distro.as_deref().unwrap_or("disabled");
+                                    let idx = ROS_DISTROS.iter().position(|&d| d == current).unwrap_or(0);
+                                    let next = (idx + 1) % opts.len();
+                                    app.ros_distro = if ROS_DISTROS[next] == "disabled" { None } else { Some(ROS_DISTROS[next].to_string()) };
+                                }
                                 _ => {}
                             }
                         }
@@ -515,8 +808,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Enter => {
                             let val = options.get(*idx).cloned().unwrap_or_default();
                             match *field {
-                                0 => app.profile = val,
-                                1 => app.machine = val,
+                                0 => {
+                                    app.profile = val.clone();
+                                    let models = models_for_profile(&app.profile);
+                                    app.robot_model = models.get(0).cloned().unwrap_or_else(|| "generic".into());
+                                }
+                                1 => { app.robot_model = val.clone(); }
+                                2 => app.machine = machine_from_selection(&val),
+                                f if f >= BASE_FIELDS + app.networks.len() + 2 && f < BASE_FIELDS + app.networks.len() + 3 => {
+                                    app.ros_distro = if val == "disabled" { None } else { Some(val) };
+                                }
                                 _ => {}
                             }
                             app.mode = Mode::Normal;
@@ -526,12 +827,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Mode::Editing { field, buffer } => match key.code {
                         KeyCode::Esc => { app.mode = Mode::Normal; }
                         KeyCode::Enter => {
+                            let flags_base = BASE_FIELDS + app.networks.len();
                             match *field {
-                                2 => app.hostname_prefix = buffer.clone(),
-                                3 => app.image_name = buffer.clone(),
-                                4 => app.robot_user = buffer.clone(),
-                                5 => app.robot_pass = buffer.clone(),
-                                7 => app.tailscale_authkey = buffer.clone(),
+                                3 => app.hostname_prefix = buffer.clone(),
+                                4 => app.image_name = buffer.clone(),
+                                5 => app.robot_user = buffer.clone(),
+                                6 => app.robot_pass = buffer.clone(),
+                                f if f == flags_base + 1 => app.tailscale_authkey = buffer.clone(),
                                 _ => {}
                             }
                             app.mode = Mode::Normal;
@@ -544,11 +846,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Esc => { app.mode = Mode::Normal; app.message = "WiFi add cancelled".into(); },
                         KeyCode::Enter => {
                             if *step == 0 {
-                                // move to password step
                                 *step = 1;
                                 app.message = "Enter WiFi password (or leave empty) and press Enter to save".into();
                             } else {
-                                // save network
                                 let s = ssid.trim().to_string();
                                 let p = pass.clone();
                                 if !s.is_empty() {

@@ -49,4 +49,3 @@ This document describes how to add a new robot type (profile) to the kas/Yocto b
 - Avoid embedding secrets in summaries. The build pipeline masks passwords and omits auth keys from summaries by default; store auth keys in /etc/robot-config/tailscale_authkey if you choose to auto-join at first boot.
 - Add unit tests or a small VM test to validate first-boot steps where feasible.
 
-If you want, I can scaffold an example profile and a minimal recipe for your new robot type.

@@ -5,6 +5,10 @@ inherit core-image
 # Common robot image features
 IMAGE_FEATURES:remove = "debug-tweaks"
 
+IMAGE_FEATURES:append = " \
+    package-management \
+    "
+
 IMAGE_INSTALL:append = " \
     packagegroup-core-ssh-openssh \
     packagegroup-base-sshd \
