@@ -1,8 +1,12 @@
 header:
   version: 14
+  includes:
+    - robot-settings.yml
+    - local-overrides.yml
 
 machine: raspberrypi5
-distro: poky
+distro: uav-companion
+target: robot-image
 
 repos:
   poky:
@@ -32,4 +36,3 @@ repos:
 
   meta-robot:
     path: layers/meta-robot
-

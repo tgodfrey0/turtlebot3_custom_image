@@ -81,8 +81,6 @@ NETWORKS_EOF
         cat >> ${D}/home/${ROBOT_USER}/.config/networks.json << 'NETWORKS_EOF2'
 ]
 NETWORKS_EOF2
-
-        chown ${ROBOT_USER}:${ROBOT_USER} ${D}/home/${ROBOT_USER}/.config/networks.json
     fi
 
     # Create first-boot marker files
@@ -98,9 +96,6 @@ NETWORKS_EOF2
     if [ "${CAMERA_SUPPORT}" = "1" ]; then
         touch ${D}/home/${ROBOT_USER}/.setup_camera
     fi
-
-    chown -R ${ROBOT_USER}:${ROBOT_USER} /home/${ROBOT_USER}/.setup_*
-    chown -R ${ROBOT_USER}:${ROBOT_USER} /home/${ROBOT_USER}/.config
 }
 
 FILES:${PN} = " \

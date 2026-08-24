@@ -8,10 +8,9 @@ DESCRIPTION = "Installs packages common to all robot images"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
 
-# No source - just packagegroup-style IMAGE_INSTALL
-PACKAGEGROUP = "1"
+inherit packagegroup
 
-IMAGE_INSTALL:append = " \
+RDEPENDS:${PN} = " \
     git \
     curl \
     wget \
@@ -23,7 +22,6 @@ IMAGE_INSTALL:append = " \
     python3-venv \
     can-utils \
     i2c-tools \
-    spi-tools \
     iputils-ping \
     net-tools \
     iproute2 \
@@ -31,7 +29,7 @@ IMAGE_INSTALL:append = " \
     procps \
     ffmpeg \
     libgpiod-tools \
-"
+    "
 
 # Rust toolchain (installed via rustup, not OE recipes)
 # This is a placeholder - actual Rust install happens at first boot or build time

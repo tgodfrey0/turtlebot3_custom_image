@@ -2,13 +2,15 @@ header:
   version: 14
   includes:
     - generic.yml
+    - local-overrides.yml
 
 machine: raspberrypi4-64
-distro: poky
+distro: uav-companion
+target: robot-image-ros
 
 repos:
-  meta-robot:
-    path: layers/meta-robot
+  meta-robot-turtlebot3:
+    path: layers/meta-robot-turtlebot3
 
   meta-ros:
     path: layers/meta-ros

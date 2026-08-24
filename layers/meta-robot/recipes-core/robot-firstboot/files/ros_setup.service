@@ -1,5 +1,6 @@
 [Unit]
 Description=ROS setup service
+After=fix-permissions.service
 
 [Service]
 Environment=USERNAME=robot

@@ -21,6 +21,8 @@ SRC_URI = " \
     file://bringup.sh \
     file://get_hostname.py \
     file://gen_netplan.py \
+    file://fix-permissions.sh \
+    file://fix-permissions.service \
     file://hostname_setup.service \
     file://network_setup.service \
     file://firewall_setup.service \
@@ -59,8 +61,9 @@ do_install() {
     install -m 0755 ${WORKDIR}/get_hostname.py ${D}/home/${ROBOT_USER}/setup_scripts/
     install -m 0755 ${WORKDIR}/gen_netplan.py ${D}/home/${ROBOT_USER}/setup_scripts/
 
-    # Set ownership
-    chown -R ${ROBOT_USER}:${ROBOT_USER} /home/${ROBOT_USER}/setup_scripts
+    # Install fix-permissions script (runs once at boot to chown files to robot user)
+    install -d -m 0755 ${D}${bindir}
+    install -m 0755 ${WORKDIR}/fix-permissions.sh ${D}${bindir}/fix-permissions.sh
 
     # Install systemd service files
     install -d -m 0755 ${D}${sysconfdir}/systemd/system
@@ -73,10 +76,13 @@ do_install() {
     install -m 0644 ${WORKDIR}/ros_setup.service ${D}${sysconfdir}/systemd/system/
     install -m 0644 ${WORKDIR}/opencr_setup.service ${D}${sysconfdir}/systemd/system/
     install -m 0644 ${WORKDIR}/bringup.service ${D}${sysconfdir}/systemd/system/
+    install -m 0644 ${WORKDIR}/fix-permissions.service ${D}${sysconfdir}/systemd/system/
 
     # Enable oneshot services
     install -d -m 0755 ${D}${sysconfdir}/systemd/system/multi-user.target.wants
 
+    ln -sf ${sysconfdir}/systemd/system/fix-permissions.service \
+        ${D}${sysconfdir}/systemd/system/multi-user.target.wants/fix-permissions.service
     ln -sf ${sysconfdir}/systemd/system/hostname_setup.service \
         ${D}${sysconfdir}/systemd/system/multi-user.target.wants/hostname_setup.service
     ln -sf ${sysconfdir}/systemd/system/firewall_setup.service \
@@ -87,6 +93,7 @@ do_install() {
 
 FILES:${PN} = " \
     /home/${ROBOT_USER}/setup_scripts/* \
+    ${bindir}/fix-permissions.sh \
     ${sysconfdir}/systemd/system/*.service \
     ${sysconfdir}/systemd/system/multi-user.target.wants/*.service \
 "

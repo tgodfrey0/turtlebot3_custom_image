@@ -1,0 +1,50 @@
+# robot-settings.yml - Shared local.conf fragment for ALL kas profiles
+#
+# kas REGENERATES build/conf/local.conf on every run, so nothing may rely on
+# conf/local.conf at the repo root. Everything tunable lives here and is
+# included by every profile (build-config.yml, turtlebot3.yml -> generic.yml).
+#
+# NOTE: no secrets here. Pass --authkey/--robot-pass at build time or edit
+# locally without committing (this file IS tracked).
+
+header:
+  version: 14
+
+local_conf_header:
+  site-settings: |
+    # Shared caches across builds
+    DL_DIR ?= "${TOPDIR}/../downloads"
+    SSTATE_DIR ?= "${TOPDIR}/../sstate-cache"
+
+    # Headless robots: systemd init (pulls in usrmerge + sysvinit backfill),
+    # no X11
+    INIT_MANAGER = "systemd"
+    DISTRO_FEATURES:remove = "x11"
+
+    PACKAGE_CLASSES ?= "package_ipk"
+    LICENSE_FLAGS_ACCEPTED:append = " commercial"
+
+  robot-settings: |
+    ROBOT_TYPE = "generic"
+    ROBOT_MODEL = "generic"
+    HOSTNAME_PREFIX = "uav"
+    BRINGUP_COMMAND = ""
+    ROBOT_USER = "robot"
+    ROBOT_PASS = "password"
+    ROS_ENABLED = "0"
+    ROS_DISTRO = "jazzy"
+    ROS_DOMAIN_ID = "30"
+    MAVLINK_ENABLED = ""
+    TAILSCALE_ENABLED = "1"
+    TAILSCALE_USE_HOSTNAME = "1"
+    TAILSCALE_AUTHKEY = ""
+    LDS_MODEL = "LDS-02"
+    CAMERA_SUPPORT = "1"
+    OPENCR_SUPPORT = "0"
+    IMAGE_NAME = "uav_companion"
+    WIFI_SSID_0 = "SOTON-IoT"
+    WIFI_PASS_0 = ""
+    WIFI_SSID_1 = ""
+    WIFI_PASS_1 = ""
+    WIFI_SSID_2 = ""
+    WIFI_PASS_2 = ""

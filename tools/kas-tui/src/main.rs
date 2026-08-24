@@ -144,65 +144,43 @@ fn models_for_profile(profile: &str) -> Vec<String> {
     }
 }
 
+/// Each robot profile maps to its own curated kas yml (which pulls in the
+/// shared robot-settings.yml fragment, the right layers, distro and target).
+fn config_for_profile(profile: &str) -> &'static str {
+    match profile {
+        "turtlebot3" => "configs/kas/turtlebot3.yml",
+        _ => "configs/kas/build-config.yml",
+    }
+}
+
 fn robot_types() -> Vec<String> {
     vec!["generic".into(), "turtlebot3".into()]
 }
 
+/// Patch only the top-level `machine:` scalar of the selected profile yml.
+/// Everything else (distro, target, repos, includes, tunables) is owned by
+/// the tracked kas configs; remaining fields are applied by build.sh flags.
 fn generate_kas_config(app: &App) -> Result<(), String> {
-    let has_ros = app.ros_distro.is_some();
-    let is_tb3 = app.profile == "turtlebot3";
+    let path = config_for_profile(&app.profile);
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read {}: {}", path, e))?;
 
-    let mut content = String::new();
-    content.push_str("header:\n");
-    content.push_str("  version: 14\n\n");
-    content.push_str(&format!("machine: {}\n", app.machine));
-    content.push_str("distro: poky\n\n");
-    content.push_str("repos:\n");
-
-    content.push_str("  poky:\n");
-    content.push_str("    path: layers/poky\n");
-    content.push_str("    url: https://git.yoctoproject.org/git/poky\n");
-    content.push_str("    branch: scarthgap\n");
-    content.push_str("    layers:\n");
-    content.push_str("      meta:\n");
-    content.push_str("      meta-poky:\n");
-    content.push_str("      meta-yocto-bsp:\n\n");
-
-    content.push_str("  meta-openembedded:\n");
-    content.push_str("    path: layers/meta-openembedded\n");
-    content.push_str("    url: https://github.com/openembedded/meta-openembedded.git\n");
-    content.push_str("    branch: scarthgap\n");
-    content.push_str("    layers:\n");
-    content.push_str("      meta-oe:\n");
-    content.push_str("      meta-python:\n");
-    content.push_str("      meta-networking:\n\n");
-
-    content.push_str("  meta-raspberrypi:\n");
-    content.push_str("    path: layers/meta-raspberrypi\n");
-    content.push_str("    url: https://git.yoctoproject.org/git/meta-raspberrypi\n");
-    content.push_str("    branch: scarthgap\n");
-    content.push_str("    layers:\n");
-    content.push_str("      .:\n\n");
-
-    content.push_str("  meta-robot:\n");
-    content.push_str("    path: layers/meta-robot\n\n");
-
-    if has_ros {
-        content.push_str("  meta-ros:\n");
-        content.push_str("    path: layers/meta-ros\n");
-        content.push_str("    url: https://github.com/ros/meta-ros.git\n");
-        content.push_str("    branch: scarthgap\n");
-        content.push_str("    layers:\n");
-        content.push_str("      meta-ros:\n\n");
+    let mut out = String::with_capacity(content.len());
+    let mut patched = false;
+    for line in content.lines() {
+        if line.starts_with("machine:") {
+            out.push_str(&format!("machine: {}\n", app.machine));
+            patched = true;
+        } else {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    if !patched {
+        return Err(format!("No 'machine:' scalar found in {}", path));
     }
 
-    if is_tb3 {
-        content.push_str("  meta-robot-turtlebot3:\n");
-        content.push_str("    path: layers/meta-robot-turtlebot3\n\n");
-    }
-
-    std::fs::write("configs/kas/build-config.yml", content)
-        .map_err(|e| format!("Failed to write kas config: {}", e))?;
+    std::fs::write(path, out).map_err(|e| format!("Failed to write {}: {}", path, e))?;
     Ok(())
 }
 
@@ -438,7 +416,7 @@ where
 
 fn build_common_args(app: &App) -> Vec<String> {
     let mut args = Vec::new();
-    args.push("--config".into()); args.push("configs/kas/build-config.yml".into());
+    args.push("--config".into()); args.push(config_for_profile(&app.profile).into());
     args.push("--machine".into()); args.push(app.machine.clone());
     args.push("--image-name".into()); args.push(app.image_name.clone());
     args.push("--hostname".into()); args.push(app.hostname_prefix.clone());
@@ -884,4 +862,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn profiles_map_to_curated_configs() {
+        assert_eq!(config_for_profile("generic"), "configs/kas/build-config.yml");
+        assert_eq!(config_for_profile("turtlebot3"), "configs/kas/turtlebot3.yml");
+        assert_eq!(config_for_profile("anything-else"), "configs/kas/build-config.yml");
+    }
 }

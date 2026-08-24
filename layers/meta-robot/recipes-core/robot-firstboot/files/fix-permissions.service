@@ -1,0 +1,12 @@
+[Unit]
+Description=Fix robot user file permissions
+Before=hostname_setup.service network_setup.service firewall_setup.service tailscale_setup.service camera_setup.service ros_setup.service opencr_setup.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/fix-permissions.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

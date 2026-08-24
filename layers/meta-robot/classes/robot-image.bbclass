@@ -29,7 +29,6 @@ WIFI_PASS_2 ??= ""
 # Image features common to all robot images
 IMAGE_FEATURES:append = " \
     ssh-server-openssh \
-    packagegroup-base-sshd \
 "
 
 IMAGE_INSTALL:append = " \
@@ -40,6 +39,4 @@ IMAGE_INSTALL:append = " \
     tailscale \
 "
 
-# Generate shadow hash for rootless user setup
-python() import hashlib
-ROBOT_PASS_HASH = "${@ hashlib.sha512('${ROBOT_PASS}'.encode()).hexdigest()}"
+

@@ -4,20 +4,24 @@ HOMEPAGE = "https://tailscale.com"
 SECTION = "networking"
 
 LICENSE = "BSD-3-Clause"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=3da9cfbcb788c80a0384361b4de20420"
+LIC_FILES_CHKSUM = "file://${WORKDIR}/LICENSE;md5=a672713a9eb730050e491c92edf7984d"
 
-SRC_URI = "https://pkgs.tailscale.com/stable/tailscale_${PV}_arm64.tgz;name=tailscale"
-SRC_URI[tailscale.sha256sum] = "SKIP"
+SRC_URI = " \
+    https://pkgs.tailscale.com/stable/tailscale_${PV}_arm64.tgz;name=tailscale \
+    file://LICENSE \
+"
+# Verified against https://pkgs.tailscale.com/stable/tailscale_1.78.1_arm64.tgz.sha256
+SRC_URI[tailscale.sha256sum] = "8eb0ae11ac2f80beac379722b37651e6ef328d098fec0425ca2786c1c8f087e3"
 
-S = "${WORKDIR}"
+S = "${WORKDIR}/tailscale_${PV}_arm64"
 
 # No compilation needed - prebuilt binary
 do_compile[noexec] = "1"
 
 do_install() {
     install -d ${D}${bindir}
-    install -m 0755 ${WORKDIR}/tailscale_${PV}/tailscale ${D}${bindir}/tailscale
-    install -m 0755 ${WORKDIR}/tailscale_${PV}/tailscaled ${D}${bindir}/tailscaled
+    install -m 0755 ${S}/tailscale ${D}${bindir}/tailscale
+    install -m 0755 ${S}/tailscaled ${D}${bindir}/tailscaled
 
     install -d ${D}${systemd_system_unitdir}
     cat > ${D}${systemd_system_unitdir}/tailscaled.service <<EOF

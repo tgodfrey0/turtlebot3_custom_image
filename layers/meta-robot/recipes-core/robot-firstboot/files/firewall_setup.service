@@ -1,6 +1,6 @@
 [Unit]
 Description=Firewall setting service
-After=network.target
+After=fix-permissions.service network.target
 
 [Service]
 Environment=USERNAME=robot

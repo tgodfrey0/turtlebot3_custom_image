@@ -1,5 +1,6 @@
 [Unit]
 Description=OpenCR setup service
+After=fix-permissions.service
 
 [Service]
 Environment=USERNAME=robot

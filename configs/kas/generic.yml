@@ -1,8 +1,10 @@
 header:
   version: 14
+  includes:
+    - robot-settings.yml
 
 machine: raspberrypi4-64
-distro: poky
+distro: uav-companion
 
 repos:
   poky:
@@ -29,3 +31,6 @@ repos:
     branch: scarthgap
     layers:
       .:
+
+  meta-robot:
+    path: layers/meta-robot

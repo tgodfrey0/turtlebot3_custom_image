@@ -1,5 +1,6 @@
 [Unit]
 Description=Network setting service
+After=fix-permissions.service
 Before=network.target
 
 [Service]
