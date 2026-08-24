@@ -4,7 +4,7 @@ poky/
 meta-openembedded/
 meta-ros/
 meta-raspberrypi/
-tools/kas-tui/target/*
+tools/kas-tui/target/
 # Generated bitbake config (created from conf/local.conf.template by build.sh)
 conf/local.conf
 
