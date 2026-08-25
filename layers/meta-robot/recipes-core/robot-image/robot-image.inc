@@ -3,8 +3,6 @@
 inherit core-image
 
 # Common robot image features
-IMAGE_FEATURES:remove = "debug-tweaks"
-
 IMAGE_FEATURES:append = " \
     package-management \
     "
@@ -36,39 +34,49 @@ IMAGE_ROOTFS_EXTRA_SPACE = "0"
 IMAGE_FEATURES:remove = "read-only-rootfs"
 
 # -----------------------------------------------------------------------------
-# User account (no debug-tweaks - login works via ROBOT_USER + password)
+# User account - login works via ROBOT_USER + password (and empty root password)
 # -----------------------------------------------------------------------------
 # The account is created with the extrausers class at rootfs time, which is the
-# supported way to provision users in images.
-#
-# ROBOT_PASS_HASH takes a crypt(3) hash (e.g. `openssl passwd -6 'secret'`).
-# If unset, one is derived from ROBOT_PASS below at parse time.
+# supported way to provision users in images. Password is patched into
+# /etc/shadow via do_rootfs_append to avoid shell expansion issues.
 
 inherit extrausers
 
 ROBOT_USER ??= "robot"
 ROBOT_PASS ??= "changeme"
-ROBOT_PASS_HASH ??= ""
-
-python () {
-    import hashlib
-    import subprocess
-    if not d.getVar('ROBOT_PASS_HASH'):
-        user = d.getVar('ROBOT_USER') or 'robot'
-        pw = d.getVar('ROBOT_PASS') or 'changeme'
-        # Deterministic 16-char salt so re-parsing doesn't invalidate sstate
-        salt = hashlib.md5(('uav' + user + pw).encode()).hexdigest()[:16]
-        out = subprocess.run(
-            ['openssl', 'passwd', '-6', '-salt', salt, pw],
-            capture_output=True, text=True)
-        if out.returncode != 0:
-            bb.fatal("Failed to hash ROBOT_PASS with openssl: %s" % out.stderr)
-        d.setVar('ROBOT_PASS_HASH', out.stdout.strip())
-}
 
 EXTRA_USERS_PARAMS = "\
-    useradd -m -s /bin/bash -G sudo,dialout,input -p '${ROBOT_PASS_HASH}' ${ROBOT_USER}; \
+    useradd -m -s /bin/bash -G sudo,dialout,input ${ROBOT_USER}; \
 "
+
+# Patch the password hash directly into /etc/shadow after do_rootfs.
+# The extrausers EXTRA_USERS_PARAMS pipeline mangles $ characters in hashes
+# (e.g. $6 → empty positional param), so we bypass it entirely and write the
+# hash with pure Python file I/O — no shell involved.
+python do_rootfs_append() {
+    import hashlib, os, subprocess, re
+
+    user = d.getVar('ROBOT_USER') or 'robot'
+    pw = d.getVar('ROBOT_PASS') or 'changeme'
+    rootfs = d.getVar('IMAGE_ROOTFS')
+
+    salt = hashlib.md5(('uav' + user + pw).encode()).hexdigest()[:16]
+    out = subprocess.run(
+        ['openssl', 'passwd', '-6', '-salt', salt, pw],
+        capture_output=True, text=True)
+    if out.returncode != 0:
+        bb.fatal("Failed to hash ROBOT_PASS with openssl: %s" % out.stderr)
+
+    shadow = os.path.join(rootfs, 'etc', 'shadow')
+    with open(shadow) as f:
+        content = f.read()
+    content = re.sub(
+        rf'^{user}:.*$',
+        f'{user}:{out.stdout.strip()}:15069:0:99999:7:::',
+        content, flags=re.MULTILINE)
+    with open(shadow, 'w') as f:
+        f.write(content)
+}
 
 # sudo is required for the NOPASSWD sudoers drop-in shipped by robot-user
 IMAGE_INSTALL:append = " \

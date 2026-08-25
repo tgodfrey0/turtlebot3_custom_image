@@ -494,7 +494,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(33), Constraint::Percentage(67)].as_ref())
+                .constraints([Constraint::Percentage(33), Constraint::Min(3), Constraint::Percentage(64)].as_ref())
                 .split(size);
 
             let top_cols = Layout::default()
@@ -591,9 +591,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .block(Block::default().borders(Borders::ALL).title("Actions"));
             f.render_widget(actions, right_split[1]);
 
-            let out_lines: Vec<Spans> = app.output.iter().rev().take(chunks[1].height as usize - 2).rev().map(|l| Spans::from(Span::raw(l.clone()))).collect();
+            let out_lines: Vec<Spans> = app.output.iter().rev().take(chunks[2].height as usize - 2).rev().map(|l| Spans::from(Span::raw(l.clone()))).collect();
             let output_para = Paragraph::new(out_lines).block(Block::default().borders(Borders::ALL).title(if app.building {"Output (building)..."} else {"Output"})).wrap(Wrap { trim: true });
-            f.render_widget(output_para, chunks[1]);
+            f.render_widget(output_para, chunks[2]);
+
+            let msg_style = if app.message.contains("failed") || app.message.contains("Failed") {
+                Style::default().fg(Color::Red)
+            } else if app.message.contains("finished") || app.message.contains("OK") {
+                Style::default().fg(Color::Green)
+            } else {
+                Style::default().fg(Color::Yellow)
+            };
+            let msg_para = Paragraph::new(Spans::from(Span::styled(app.message.clone(), msg_style)));
+            f.render_widget(msg_para, chunks[1]);
 
             match &app.mode {
                 Mode::Selecting { field: _, options, idx } => {
