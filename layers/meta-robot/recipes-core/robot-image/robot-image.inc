@@ -24,6 +24,9 @@ IMAGE_INSTALL:append = " \
     python3 \
     python3-pip \
     python3-venv \
+    wpa-supplicant \
+    netplan \
+    kbd \
     "
 
 # Minimal image size - always grow to fit contents exactly
@@ -53,7 +56,7 @@ EXTRA_USERS_PARAMS = "\
 # The extrausers EXTRA_USERS_PARAMS pipeline mangles $ characters in hashes
 # (e.g. $6 → empty positional param), so we bypass it entirely and write the
 # hash with pure Python file I/O — no shell involved.
-python do_rootfs_append() {
+python do_rootfs:append() {
     import hashlib, os, subprocess, re
 
     user = d.getVar('ROBOT_USER') or 'robot'
@@ -76,6 +79,19 @@ python do_rootfs_append() {
         content, flags=re.MULTILINE)
     with open(shadow, 'w') as f:
         f.write(content)
+
+    # Fix ip command: /usr/sbin/ip is a broken alternatives symlink.
+    # Create a symlink in /usr/local/bin so it's in regular user PATH.
+    ip_path = os.path.join(rootfs, 'usr', 'sbin', 'ip')
+    local_bin = os.path.join(rootfs, 'usr', 'local', 'bin')
+    os.makedirs(local_bin, exist_ok=True)
+    ip_local = os.path.join(local_bin, 'ip')
+    if not os.path.exists(ip_local):
+        os.symlink('/usr/sbin/ip', ip_local)
+
+    # UK keyboard layout
+    with open(os.path.join(rootfs, 'etc', 'vconsole.conf'), 'w') as f:
+        f.write('KEYMAP=gb\n')
 }
 
 # sudo is required for the NOPASSWD sudoers drop-in shipped by robot-user

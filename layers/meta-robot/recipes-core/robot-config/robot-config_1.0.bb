@@ -12,7 +12,6 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI = " \
-    file://networks.json \
 "
 
 # Robot configuration variables
@@ -23,6 +22,7 @@ BRINGUP_COMMAND ??= ""
 ROS_DOMAIN_ID ??= "0"
 LDS_MODEL ??= ""
 TAILSCALE_USE_HOSTNAME ??= "1"
+TAILSCALE_AUTHKEY ??= ""
 CAMERA_SUPPORT ??= "0"
 
 # WiFi networks (up to 3)
@@ -53,27 +53,30 @@ do_install() {
     # Write workspace path (colcon workspace for ROS builds)
     echo "/home/${ROBOT_USER}/colcon_ws" > ${D}${sysconfdir}/robot-config/workspace_path
 
+    # Write Tailscale config (read by setup_tailscale.sh at first boot)
+    echo "${TAILSCALE_USE_HOSTNAME}" > ${D}${sysconfdir}/robot-config/tailscale_use_hostname
+    if [ -n "${TAILSCALE_AUTHKEY}" ]; then
+        echo "${TAILSCALE_AUTHKEY}" > ${D}${sysconfdir}/robot-config/tailscale_authkey
+        chmod 600 ${D}${sysconfdir}/robot-config/tailscale_authkey
+    fi
+
     # Create user config directory
     install -d -m 0755 ${D}/home/${ROBOT_USER}/.config
 
-    # Write network configuration as JSON
-    # This is read by gen_netplan.py at first boot
+    # Write network configuration as JSON (for manual reconfiguration reference)
     if [ -n "${WIFI_SSID_0}" ]; then
         cat > ${D}/home/${ROBOT_USER}/.config/networks.json << 'NETWORKS_EOF'
 [
 NETWORKS_EOF
 
-        # Write first network
         if [ -n "${WIFI_SSID_0}" ]; then
             echo "  {\"ssid\": \"${WIFI_SSID_0}\", \"password\": \"${WIFI_PASS_0}\"}" >> ${D}/home/${ROBOT_USER}/.config/networks.json
         fi
 
-        # Write second network if present
         if [ -n "${WIFI_SSID_1}" ]; then
             echo "  ,{\"ssid\": \"${WIFI_SSID_1}\", \"password\": \"${WIFI_PASS_1}\"}" >> ${D}/home/${ROBOT_USER}/.config/networks.json
         fi
 
-        # Write third network if present
         if [ -n "${WIFI_SSID_2}" ]; then
             echo "  ,{\"ssid\": \"${WIFI_SSID_2}\", \"password\": \"${WIFI_PASS_2}\"}" >> ${D}/home/${ROBOT_USER}/.config/networks.json
         fi
@@ -81,6 +84,37 @@ NETWORKS_EOF
         cat >> ${D}/home/${ROBOT_USER}/.config/networks.json << 'NETWORKS_EOF2'
 ]
 NETWORKS_EOF2
+
+        # Generate netplan YAML at build time for reliable WiFi on first boot
+        install -d -m 0755 ${D}${sysconfdir}/netplan
+        cat > ${D}${sysconfdir}/netplan/50-wifi.yaml << WIFI_EOF
+network:
+    ethernets:
+        eth0:
+            dhcp4: true
+            optional: true
+    version: 2
+    renderer: networkd
+    wifis:
+        wlan0:
+            access-points:
+WIFI_EOF
+
+        echo "                \"${WIFI_SSID_0}\":" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+        echo "                    password: \"${WIFI_PASS_0}\"" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+
+        if [ -n "${WIFI_SSID_1}" ]; then
+            echo "                \"${WIFI_SSID_1}\":" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+            echo "                    password: \"${WIFI_PASS_1}\"" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+        fi
+
+        if [ -n "${WIFI_SSID_2}" ]; then
+            echo "                \"${WIFI_SSID_2}\":" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+            echo "                    password: \"${WIFI_PASS_2}\"" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+        fi
+
+        echo "            dhcp4: true" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+        echo "            dhcp6: true" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
     fi
 
     # Create first-boot marker files
@@ -89,10 +123,6 @@ NETWORKS_EOF2
     touch ${D}/home/${ROBOT_USER}/.setup_firewall
     touch ${D}/home/${ROBOT_USER}/.setup_tailscale
 
-    if [ -n "${WIFI_SSID_0}" ]; then
-        touch ${D}/home/${ROBOT_USER}/.setup_network
-    fi
-
     if [ "${CAMERA_SUPPORT}" = "1" ]; then
         touch ${D}/home/${ROBOT_USER}/.setup_camera
     fi
@@ -100,6 +130,7 @@ NETWORKS_EOF2
 
 FILES:${PN} = " \
     ${sysconfdir}/robot-config/* \
+    ${sysconfdir}/netplan/* \
     /home/${ROBOT_USER}/.config/* \
     /home/${ROBOT_USER}/.setup_* \
 "

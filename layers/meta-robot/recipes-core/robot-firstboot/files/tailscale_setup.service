@@ -1,7 +1,6 @@
 [Unit]
 Description=Tailscale VPN first-boot setup
 After=fix-permissions.service network.target
-Before=network-online.target
 
 [Service]
 Type=oneshot

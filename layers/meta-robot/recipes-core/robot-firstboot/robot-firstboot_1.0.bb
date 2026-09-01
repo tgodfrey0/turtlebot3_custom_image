@@ -89,6 +89,12 @@ do_install() {
         ${D}${sysconfdir}/systemd/system/multi-user.target.wants/firewall_setup.service
     ln -sf ${sysconfdir}/systemd/system/tailscale_setup.service \
         ${D}${sysconfdir}/systemd/system/multi-user.target.wants/tailscale_setup.service
+    ln -sf ${sysconfdir}/systemd/system/network_setup.service \
+        ${D}${sysconfdir}/systemd/system/multi-user.target.wants/network_setup.service
+    ln -sf ${sysconfdir}/systemd/system/systemd-resolved.service \
+        ${D}${sysconfdir}/systemd/system/multi-user.target.wants/systemd-resolved.service
+    ln -sf ${sysconfdir}/systemd/system/wpa_supplicant.service \
+        ${D}${sysconfdir}/systemd/system/multi-user.target.wants/wpa_supplicant.service
 }
 
 FILES:${PN} = " \
