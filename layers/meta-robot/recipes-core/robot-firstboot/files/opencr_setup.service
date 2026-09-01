@@ -3,8 +3,8 @@ Description=OpenCR setup service
 After=fix-permissions.service
 
 [Service]
-Environment=USERNAME=robot
-ExecStart=/home/robot/setup_scripts/setup_opencr.sh
+Environment=USERNAME=@ROBOT_USER@
+ExecStart=/home/@ROBOT_USER@/setup_scripts/setup_opencr.sh
 Type=oneshot
 User=root
 

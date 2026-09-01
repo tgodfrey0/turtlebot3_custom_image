@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
     --hostname) HOSTNAME_PREFIX_VAL="$2"; shift 2;;
     --image-name) IMAGE_NAME_VAL="$2"; shift 2;;
     --robot-type) ROBOT_TYPE_VAL="$2"; shift 2;;
-    --robot-model) ROBOT_TYPE_VAL="$2"; shift 2;;
+    --robot-model) ROBOT_MODEL_VAL="$2"; shift 2;;
     --robot-user) ROBOT_USER_VAL="$2"; shift 2;;
     --robot-pass) ROBOT_PASS_VAL="$2"; shift 2;;
     --tailscale-enabled) TAILSCALE_ENABLED_VAL="$2"; shift 2;;
@@ -126,6 +126,7 @@ set_yaml_scalar() {
 [ -n "${HOSTNAME_PREFIX_VAL:-}" ] && set_kv HOSTNAME_PREFIX "${HOSTNAME_PREFIX_VAL}"
 [ -n "${IMAGE_NAME_VAL:-}" ] && set_kv IMAGE_NAME "${IMAGE_NAME_VAL}"
 [ -n "${ROBOT_TYPE_VAL:-}" ] && set_kv ROBOT_TYPE "${ROBOT_TYPE_VAL}"
+[ -n "${ROBOT_MODEL_VAL:-}" ] && set_kv ROBOT_MODEL "${ROBOT_MODEL_VAL}"
 [ -n "${ROBOT_USER_VAL:-}" ] && set_kv ROBOT_USER "${ROBOT_USER_VAL}"
 [ -n "${ROBOT_PASS_VAL:-}" ] && set_secret ROBOT_PASS "${ROBOT_PASS_VAL}"
 [ -n "${TAILSCALE_ENABLED_VAL:-}" ] && set_kv TAILSCALE_ENABLED "${TAILSCALE_ENABLED_VAL}"

@@ -5,7 +5,7 @@
 # installed by robot-config and robot-firstboot are root-owned.
 # This service runs once at boot to fix ownership before firstboot scripts.
 
-ROBOT_USER="robot"
+ROBOT_USER=$(cat /etc/robot-user)
 
 chown -R ${ROBOT_USER}:${ROBOT_USER} /home/${ROBOT_USER}/setup_scripts
 chown -R ${ROBOT_USER}:${ROBOT_USER} /home/${ROBOT_USER}/.config

@@ -63,7 +63,7 @@ do_install() {
     # Create user config directory
     install -d -m 0755 ${D}/home/${ROBOT_USER}/.config
 
-    # Write network configuration as JSON (for manual reconfiguration reference)
+    # Write network configuration as JSON for first boot and manual reconfiguration
     if [ -n "${WIFI_SSID_0}" ]; then
         cat > ${D}/home/${ROBOT_USER}/.config/networks.json << 'NETWORKS_EOF'
 [

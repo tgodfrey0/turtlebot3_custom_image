@@ -3,8 +3,8 @@ Description=Firewall setting service
 After=fix-permissions.service network.target
 
 [Service]
-Environment=USERNAME=robot
-ExecStart=/home/robot/setup_scripts/setup_firewall.sh
+Environment=USERNAME=@ROBOT_USER@
+ExecStart=/home/@ROBOT_USER@/setup_scripts/setup_firewall.sh
 Type=oneshot
 User=root
 

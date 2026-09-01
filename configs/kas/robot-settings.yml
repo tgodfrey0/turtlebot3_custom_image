@@ -42,9 +42,11 @@ local_conf_header:
     CAMERA_SUPPORT = "1"
     OPENCR_SUPPORT = "0"
     IMAGE_NAME = "uav_companion"
-    WIFI_SSID_0 = "SOTON-IoT"
-    WIFI_PASS_0 = ""
-    WIFI_SSID_1 = ""
-    WIFI_PASS_1 = ""
-    WIFI_SSID_2 = ""
-    WIFI_PASS_2 = ""
+    # Defaults only: kas-generated local overrides must be able to replace
+    # these values, including passwords supplied by build.sh.
+    WIFI_SSID_0 = "tmagphone"
+    WIFI_PASS_0 ?= ""
+    WIFI_SSID_1 = "SOTON-IoT"
+    WIFI_PASS_1 ?= ""
+    WIFI_SSID_2 ?= ""
+    WIFI_PASS_2 ?= ""

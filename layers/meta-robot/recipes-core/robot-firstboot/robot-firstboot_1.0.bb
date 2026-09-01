@@ -42,6 +42,8 @@ RDEPENDS:${PN} = " \
     python3 \
     python3-core \
     ufw \
+    netplan \
+    tailscale \
 "
 
 do_install() {
@@ -68,14 +70,11 @@ do_install() {
     # Install systemd service files
     install -d -m 0755 ${D}${sysconfdir}/systemd/system
 
-    install -m 0644 ${WORKDIR}/hostname_setup.service ${D}${sysconfdir}/systemd/system/
-    install -m 0644 ${WORKDIR}/network_setup.service ${D}${sysconfdir}/systemd/system/
-    install -m 0644 ${WORKDIR}/firewall_setup.service ${D}${sysconfdir}/systemd/system/
-    install -m 0644 ${WORKDIR}/tailscale_setup.service ${D}${sysconfdir}/systemd/system/
-    install -m 0644 ${WORKDIR}/camera_setup.service ${D}${sysconfdir}/systemd/system/
-    install -m 0644 ${WORKDIR}/ros_setup.service ${D}${sysconfdir}/systemd/system/
-    install -m 0644 ${WORKDIR}/opencr_setup.service ${D}${sysconfdir}/systemd/system/
-    install -m 0644 ${WORKDIR}/bringup.service ${D}${sysconfdir}/systemd/system/
+    for service in hostname_setup network_setup firewall_setup tailscale_setup camera_setup ros_setup opencr_setup bringup; do
+        sed -e "s|@ROBOT_USER@|${ROBOT_USER}|g" \
+            ${WORKDIR}/${service}.service \
+            > ${D}${sysconfdir}/systemd/system/${service}.service
+    done
     install -m 0644 ${WORKDIR}/fix-permissions.service ${D}${sysconfdir}/systemd/system/
 
     # Enable oneshot services
@@ -91,10 +90,6 @@ do_install() {
         ${D}${sysconfdir}/systemd/system/multi-user.target.wants/tailscale_setup.service
     ln -sf ${sysconfdir}/systemd/system/network_setup.service \
         ${D}${sysconfdir}/systemd/system/multi-user.target.wants/network_setup.service
-    ln -sf ${sysconfdir}/systemd/system/systemd-resolved.service \
-        ${D}${sysconfdir}/systemd/system/multi-user.target.wants/systemd-resolved.service
-    ln -sf ${sysconfdir}/systemd/system/wpa_supplicant.service \
-        ${D}${sysconfdir}/systemd/system/multi-user.target.wants/wpa_supplicant.service
 }
 
 FILES:${PN} = " \

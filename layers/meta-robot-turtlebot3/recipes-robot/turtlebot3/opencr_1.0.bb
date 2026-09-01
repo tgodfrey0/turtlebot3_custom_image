@@ -33,10 +33,6 @@ do_install() {
     cd ${D}/home/${ROBOT_USER}/opencr_update
     tar xjf ${WORKDIR}/opencr_update.tar.bz2
 
-    # Copy first-boot flash script
-    install -d -m 0755 ${D}/home/${ROBOT_USER}/setup_scripts
-    install -m 0755 ${WORKDIR}/setup_opencr.sh ${D}/home/${ROBOT_USER}/setup_scripts/
-
     # Create first-boot marker
     touch ${D}/home/${ROBOT_USER}/.setup_opencr
 

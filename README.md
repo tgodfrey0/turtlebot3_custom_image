@@ -35,10 +35,10 @@ Install kas (e.g., pip install kas) and ensure git, python3 are available.
 
 # Generate local.conf and build (recommended):
 # - Use the build wrapper which generates conf/local.conf from template and runs kas
-./build.sh --profile generic --machine raspberrypi4-64
+./build.sh --config configs/kas/build-config.yml --machine raspberrypi4-64
 
 # Preview generated conf only:
-./build.sh --profile generic --machine raspberrypi4-64 --dry-run
+./build.sh --config configs/kas/build-config.yml --machine raspberrypi4-64 --dry-run
 
 # Interactive TUI (ratatui) to pick profile/options and export/build:
 # Build and install binary to repo root:
@@ -61,6 +61,9 @@ to generate conf/local.conf from conf/local.conf.template and run kas.
 
 - configs/kas/generic.yml  — base kas workspace (poky, meta-openembedded, meta-raspberrypi, meta-robot)
 - configs/kas/turtlebot3.yml — includes generic.yml and adds meta-ros
+- The generic profile builds `robot-image` without TurtleBot3 or OpenCR.
+- The TurtleBot3 profile builds `robot-image-ros`; OpenCR is enabled for that
+  profile and can be disabled with `--opencr-enabled 0`.
 - conf/local.conf.template — template; build.sh fills values and writes conf/local.conf
 - tools/kas-tui — interactive TUI (ratatui) to pick profile, machine, extras, and export/build
 

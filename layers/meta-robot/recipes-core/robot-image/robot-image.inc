@@ -89,9 +89,21 @@ python do_rootfs:append() {
     if not os.path.exists(ip_local):
         os.symlink('/usr/sbin/ip', ip_local)
 
-    # UK keyboard layout
+    # UK keyboard layout for the local console and kbd defaults.
     with open(os.path.join(rootfs, 'etc', 'vconsole.conf'), 'w') as f:
-        f.write('KEYMAP=gb\n')
+        f.write('KEYMAP=uk\n')
+    os.makedirs(os.path.join(rootfs, 'etc', 'default'), exist_ok=True)
+    with open(os.path.join(rootfs, 'etc', 'default', 'keyboard'), 'w') as f:
+        f.write('XKBMODEL="pc105"\n')
+        f.write('XKBLAYOUT="gb"\n')
+        f.write('XKBVARIANT=""\n')
+        f.write('XKBOPTIONS=""\n')
+
+    # /usr/sbin is not included in a regular user's default PATH.
+    netplan_path = os.path.join(rootfs, 'usr', 'sbin', 'netplan')
+    netplan_local = os.path.join(local_bin, 'netplan')
+    if os.path.exists(netplan_path) and not os.path.exists(netplan_local):
+        os.symlink('/usr/sbin/netplan', netplan_local)
 }
 
 # sudo is required for the NOPASSWD sudoers drop-in shipped by robot-user

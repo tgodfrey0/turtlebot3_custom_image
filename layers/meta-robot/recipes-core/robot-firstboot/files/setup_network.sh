@@ -11,7 +11,7 @@ if [[ -f "$NETWORKS_FILE" ]]; then
     mkdir -p /etc/cloud/cloud.cfg.d/
     echo "network: {config: disabled}" | tee /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg > /dev/null
 
-    cat > /etc/netplan/50-cloud-init.yaml << 'BASE_EOF'
+    cat > /etc/netplan/50-wifi.yaml << 'BASE_EOF'
 network:
     ethernets:
         eth0:
@@ -26,11 +26,10 @@ BASE_EOF
 
     python3 "$SCRIPT_DIR/gen_netplan.py" "$USERNAME"
 
-    chmod 600 /etc/netplan/50-cloud-init.yaml
+    chmod 600 /etc/netplan/50-wifi.yaml
 
     netplan apply || echo "Netplan apply will take effect on next boot"
 
-    rm -f "$NETWORKS_FILE"
     rm -f "/home/$USERNAME/.setup_network"
 
     echo -e "\e[1;32mWiFi networks configured successfully\e[0m"

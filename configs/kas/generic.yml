@@ -34,3 +34,10 @@ repos:
 
   meta-robot:
     path: layers/meta-robot
+
+  meta-tailscale:
+    path: layers/meta-tailscale
+    url: https://github.com/ChristophHandschuh/meta-tailscale.git
+    branch: master
+    layers:
+      .:
