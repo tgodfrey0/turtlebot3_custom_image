@@ -2,6 +2,7 @@ header:
   version: 14
   includes:
     - robot-settings.yml
+    - local-overrides.yml
 
 machine: raspberrypi4-64
 distro: uav-companion

@@ -21,8 +21,31 @@ done
 HOSTNAME=$(hostname)
 
 # `tailscale status` exits successfully even when the backend needs login.
-# Check the reported backend state instead.
-if tailscale status --json 2>/dev/null | grep -q '"BackendState":[[:space:]]*"Running"'; then
+# Only treat Tailscale as configured when the backend is running and a real
+# tailnet identity is present; otherwise we must still attempt the auth-key
+# login flow.
+if python3 - <<'PY'
+import json
+import subprocess
+import sys
+
+try:
+    status = json.loads(
+        subprocess.check_output(['tailscale', 'status', '--json'], stderr=subprocess.DEVNULL)
+    )
+except Exception:
+    sys.exit(1)
+
+backend_state = status.get('BackendState')
+self_info = status.get('Self')
+current_tailnet = status.get('CurrentTailnet')
+
+if backend_state == 'Running' and (self_info or current_tailnet):
+    sys.exit(0)
+
+sys.exit(1)
+PY
+then
     echo "Tailscale already configured."
     rm -f "/home/${USERNAME}/.setup_tailscale"
     exit 0
