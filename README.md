@@ -23,34 +23,29 @@ sudo apt install gawk wget git diffstat unzip texinfo gcc build-essential \
 sudo locale-gen en_US.UTF-8
 ```
 
-### Or use pixi (recommended)
-
-```bash
-pixi install
-```
-
 ## Quick Start (kas + build wrapper)
 
-Install kas (e.g., pip install kas) and ensure git, python3 are available.
+Install kas (e.g., `pip install kas`) and ensure git, python3 are available.
 
-# Generate local.conf and build (recommended):
-# - Use the build wrapper which generates conf/local.conf from template and runs kas
+**Generate local.conf and build (recommended):**
+```bash
 ./build.sh --config configs/kas/build-config.yml --machine raspberrypi4-64
+```
 
-# Preview generated conf only:
+**Preview generated conf only:**
+```bash
 ./build.sh --config configs/kas/build-config.yml --machine raspberrypi4-64 --dry-run
+```
 
-# Interactive TUI (ratatui) to pick profile/options and export/build:
-# Build and install binary to repo root:
-# cd tools/kas-tui && ./install_and_place.sh
-# Run the TUI binary from repo root:
-# ./builder-tui --profile turtlebot3 --export --machine raspberrypi4-64
-# or run in interactive mode (no --export) to use the full UI.
+**Interactive TUI (ratatui) to pick profile/options and export/build:**
+```bash
+# Build and install the TUI binary to repo root
+cd tools/kas-tui && ./install_and_place.sh
 
-# Legacy: pixi-based workflow (kept for compatibility):
-# pixi run setup-env
-# source workspace/poky/oe-init-build-env workspace/build
-# pixi run build configs/tb_jazzy.toml
+# Run the TUI binary from repo root
+./builder-tui --profile turtlebot3 --export --machine raspberrypi4-64
+# or run in interactive mode (no --export) to use the full UI
+```
 
 
 
@@ -88,17 +83,17 @@ TUI or by editing conf/local.conf.template and configs/kas/*.yml.
 
 ## Output
 
-- `tmp/deploy/images/<machine>/robot-image-<machine>.wic` — raw disk image
-- `tmp/deploy/images/<machine>/robot-image-<machine>.wic.bmap` — block map
+- `output/<image-name>-<hash>/<image-name>.wic` — raw disk image
+- `output/<image-name>-<hash>/<image-name>.wic.bmap` — block map
 
 ### Flashing
 
 ```bash
 # Using bmaptool (recommended)
-sudo bmaptool copy tmp/deploy/images/raspberrypi4-64/robot-image-*.wic /dev/sdX
+sudo bmaptool copy output/<image-name>-<hash>/<image-name>.wic /dev/sdX
 
 # Using dd
-sudo dd if=tmp/deploy/images/raspberrypi4-64/robot-image-*.wic of=/dev/sdX status=progress
+sudo dd if=output/<image-name>-<hash>/<image-name>.wic of=/dev/sdX status=progress
 ```
 
 **MAKE SURE YOU SELECT THE CORRECT DRIVE.**
