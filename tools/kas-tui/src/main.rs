@@ -44,6 +44,7 @@ struct App {
     dev_tools: bool,
     python_tools: bool,
     research_tools: bool,
+    enable_uart: bool,
 
     message: String,
     mode: Mode,
@@ -83,6 +84,7 @@ impl Default for App {
             dev_tools: true,
             python_tools: true,
             research_tools: true,
+            enable_uart: false,
             message: "Enter=edit/select, Space=toggle, i=import, a=add-wifi, p=preview, e=export, b=build, q=quit".into(),
             mode: Mode::Normal,
             output: Vec::new(),
@@ -99,7 +101,7 @@ impl Default for App {
 }
 
 const BASE_FIELDS: usize = 7;
-const FLAG_FIELDS: usize = 6;
+const FLAG_FIELDS: usize = 7;
 
 impl App {
     fn field_count(&self) -> usize {
@@ -192,7 +194,11 @@ fn generate_kas_config(app: &App) -> Result<(), String> {
 
 fn load_config_from_file(path: &str, app: &mut App) -> Result<String, String> {
     let content = std::fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
-    
+    parse_config(&content, app);
+    Ok(format!("Imported configuration from {}", path))
+}
+
+fn parse_config(content: &str, app: &mut App) {
     app.networks.clear();
 
     for line in content.lines() {
@@ -208,12 +214,14 @@ fn load_config_from_file(path: &str, app: &mut App) -> Result<String, String> {
             match key {
                 "profile" => app.profile = val.to_string(),
                 "machine" => app.machine = val.to_string(),
-                "robot_type" => app.robot_model = val.to_string(),
+                "robot_type" => app.profile = val.to_string(),
+                "robot_model" => app.robot_model = val.to_string(),
                 "image_name" => app.image_name = val.to_string(),
                 "hostname_prefix" => app.hostname_prefix = val.to_string(),
                 "robot_user" => app.robot_user = val.to_string(),
                 "robot_pass" => app.robot_pass = val.to_string(),
                 "tailscale_enabled" => app.tailscale = val == "1",
+                "enable_uart" => app.enable_uart = val == "1",
                 "ros_distro" => {
                     if val == "disabled" || val.is_empty() {
                         app.ros_distro = None;
@@ -243,8 +251,6 @@ fn load_config_from_file(path: &str, app: &mut App) -> Result<String, String> {
     }
 
     app.networks.retain(|(s, _)| !s.is_empty());
-    
-    Ok(format!("Imported configuration from {}", path))
 }
 
 fn zenity_file() -> Option<String> {
@@ -440,6 +446,7 @@ fn build_common_args(app: &App) -> Vec<String> {
     if let Some(ref distro) = app.ros_distro {
         args.push("--ros-distro".into()); args.push(distro.clone());
     }
+    args.push("--enable-uart".into()); args.push((if app.enable_uart {"1"} else {"0"}).into());
     let opencr = app.profile == "turtlebot3";
     args.push("--opencr-enabled".into()); args.push((if opencr {"1"} else {"0"}).into());
     args
@@ -541,6 +548,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             params.push(format!("Python tools: {}", if app.python_tools {"enabled"} else {"disabled"}));
             params.push(format!("Research tools: {}", if app.research_tools {"enabled"} else {"disabled"}));
             params.push(format!("ROS2: {}", ros_label));
+            params.push(format!("Enable UART: {}", if app.enable_uart {"enabled"} else {"disabled"}));
 
             let param_items: Vec<ListItem> = params.iter().map(|p| ListItem::new(Spans::from(Span::raw(p.clone())))).collect();
             let mut list_state = ratatui::widgets::ListState::default();
@@ -799,6 +807,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                     let next = (idx + 1) % opts.len();
                                     app.ros_distro = if ROS_DISTROS[next] == "disabled" { None } else { Some(ROS_DISTROS[next].to_string()) };
                                 }
+                                i if i == flags_base + 6 => { app.enable_uart = !app.enable_uart; }
                                 _ => {}
                             }
                         }
@@ -810,6 +819,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Down => { *idx = (*idx + 1) % options.len() }
                         KeyCode::Enter => {
                             let val = options.get(*idx).cloned().unwrap_or_default();
+                            let fbase = BASE_FIELDS + app.networks.len();
                             match *field {
                                 0 => {
                                     app.profile = val.clone();
@@ -818,7 +828,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 }
                                 1 => { app.robot_model = val.clone(); }
                                 2 => app.machine = machine_from_selection(&val),
-                                f if f >= BASE_FIELDS + app.networks.len() + 2 && f < BASE_FIELDS + app.networks.len() + 3 => {
+                                f if f == fbase + 5 => {
                                     app.ros_distro = if val == "disabled" { None } else { Some(val) };
                                 }
                                 _ => {}
@@ -898,5 +908,40 @@ mod tests {
         assert_eq!(config_for_profile("generic"), "configs/kas/build-config.yml");
         assert_eq!(config_for_profile("turtlebot3"), "configs/kas/turtlebot3.yml");
         assert_eq!(config_for_profile("anything-else"), "configs/kas/build-config.yml");
+    }
+
+    #[test]
+    fn exported_summary_round_trips_into_app_state() {
+        let summary = "\
+config: /tmp/configs/kas/turtlebot3.yml
+profile: turtlebot3
+machine: raspberrypi5
+image_name: tb3_test
+robot_type: turtlebot3
+robot_model: waffle
+robot_user: robot
+robot_pass: password
+hostname_prefix: robot
+tailscale_enabled: 1
+enable_uart: 1
+ros_distro: humble
+wifi_0_ssid: mynet
+wifi_0_pass: secret
+timestamps: 20260907
+";
+        let mut app = App::default();
+        parse_config(summary, &mut app);
+
+        assert_eq!(app.profile, "turtlebot3");
+        assert_eq!(app.machine, "raspberrypi5");
+        assert_eq!(app.robot_model, "waffle");
+        assert_eq!(app.image_name, "tb3_test");
+        assert_eq!(app.hostname_prefix, "robot");
+        assert_eq!(app.robot_user, "robot");
+        assert_eq!(app.robot_pass, "password");
+        assert!(app.tailscale);
+        assert!(app.enable_uart);
+        assert_eq!(app.ros_distro.as_deref(), Some("humble"));
+        assert_eq!(app.networks, vec![("mynet".to_string(), "secret".to_string())]);
     }
 }

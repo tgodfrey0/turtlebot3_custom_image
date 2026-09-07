@@ -44,6 +44,7 @@ local_conf_header:
     LDS_MODEL = "LDS-02"
     CAMERA_SUPPORT = "1"
     OPENCR_SUPPORT = "0"
+    ENABLE_UART = "1"
     IMAGE_NAME = "uav_companion"
     # Defaults only: kas-generated local overrides must be able to replace
     # these values, including passwords supplied by build.sh.

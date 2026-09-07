@@ -39,12 +39,13 @@ while [[ $# -gt 0 ]]; do
     --dev-tools-enabled) DEV_TOOLS_ENABLED_VAL="$2"; shift 2;;
     --python-tools-enabled) PYTHON_TOOLS_ENABLED_VAL="$2"; shift 2;;
     --research-tools-enabled) RESEARCH_TOOLS_ENABLED_VAL="$2"; shift 2;;
+    --enable-uart) ENABLE_UART_VAL="$2"; shift 2;;
     --wifi) WIFI_ARGS+=("$2" "$3"); shift 3;;
     --outdir) OUTPUT_ROOT="$2"; shift 2;;
     --no-build) NO_BUILD=1; shift 1;;
     --dry-run) DRY_RUN=1; shift 1;;
     --export-only) NO_BUILD=1; DRY_RUN=0; shift 1;;
-    --help) echo "Usage: $0 --config <path> [--machine MACHINE] [--authkey KEY] [--hostname PREFIX] [--image-name NAME] [--robot-user USER] [--robot-pass PASS] [--tailscale-enabled 0|1] [--ros-distro DISTRO] [--outdir DIR] [--no-build] [--dry-run]"; exit 0;;
+    --help) echo "Usage: $0 --config <path> [--machine MACHINE] [--authkey KEY] [--hostname PREFIX] [--image-name NAME] [--robot-user USER] [--robot-pass PASS] [--tailscale-enabled 0|1] [--ros-distro DISTRO] [--enable-uart 0|1] [--outdir DIR] [--no-build] [--dry-run]"; exit 0;;
     *) shift 1;;
   esac
 done
@@ -62,6 +63,13 @@ fi
 # profile yml (machine/distro/target scalars live here)
 CONFIG=$(realpath "${CONFIG}")
 PROFILE_CONF="${CONFIG}"
+
+# derive the human profile label from the kas config filename so ROBOT_TYPE
+# defaults to the selected profile (mirrors the TUI's config_for_profile)
+case "$(basename "${CONFIG}")" in
+  turtlebot3.yml) PROFILE="turtlebot3";;
+  *) PROFILE="generic";;
+esac
 
 if [[ ! -f "${SETTINGS_CONF}" ]]; then
   echo "Error: settings fragment ${SETTINGS_CONF} not found" >&2
@@ -128,7 +136,12 @@ set_yaml_scalar() {
 [ -n "${TAILSCALE_AUTHKEY_VAL:-}" ] && set_secret TAILSCALE_AUTHKEY "${TAILSCALE_AUTHKEY_VAL}"
 [ -n "${HOSTNAME_PREFIX_VAL:-}" ] && set_kv HOSTNAME_PREFIX "${HOSTNAME_PREFIX_VAL}"
 [ -n "${IMAGE_NAME_VAL:-}" ] && set_kv IMAGE_NAME "${IMAGE_NAME_VAL}"
-[ -n "${ROBOT_TYPE_VAL:-}" ] && set_kv ROBOT_TYPE "${ROBOT_TYPE_VAL}"
+# ROBOT_TYPE: prefer an explicit --robot-type, else derive from the profile
+if [[ -n "${ROBOT_TYPE_VAL:-}" ]]; then
+  set_kv ROBOT_TYPE "${ROBOT_TYPE_VAL}"
+else
+  set_kv ROBOT_TYPE "${PROFILE}"
+fi
 [ -n "${ROBOT_MODEL_VAL:-}" ] && set_kv ROBOT_MODEL "${ROBOT_MODEL_VAL}"
 [ -n "${ROBOT_USER_VAL:-}" ] && set_kv ROBOT_USER "${ROBOT_USER_VAL}"
 [ -n "${ROBOT_PASS_VAL:-}" ] && set_secret ROBOT_PASS "${ROBOT_PASS_VAL}"
@@ -142,6 +155,7 @@ set_yaml_scalar() {
 [ -n "${DEV_TOOLS_ENABLED_VAL:-}" ] && set_kv DEV_TOOLS_ENABLED "${DEV_TOOLS_ENABLED_VAL}"
 [ -n "${PYTHON_TOOLS_ENABLED_VAL:-}" ] && set_kv PYTHON_TOOLS_ENABLED "${PYTHON_TOOLS_ENABLED_VAL}"
 [ -n "${RESEARCH_TOOLS_ENABLED_VAL:-}" ] && set_kv RESEARCH_TOOLS_ENABLED "${RESEARCH_TOOLS_ENABLED_VAL}"
+[ -n "${ENABLE_UART_VAL:-}" ] && set_kv ENABLE_UART "${ENABLE_UART_VAL}"
 # WiFi settings from WIFI_ARGS array
 WIFI_IDX=0
 WIFI_SSID_VALS=()
@@ -189,15 +203,19 @@ write_summary() {
   ROBOT_USER_VAL=$(get_kv ROBOT_USER)
   ROBOT_PASS_VAL=$(get_kv ROBOT_PASS)
   ROBOT_TYPE_VAL=$(get_kv ROBOT_TYPE)
+  ROBOT_MODEL_VAL=$(get_kv ROBOT_MODEL)
   HOSTNAME_PREFIX_VAL=$(get_kv HOSTNAME_PREFIX)
   TAILSCALE_ENABLED_VAL=$(get_kv TAILSCALE_ENABLED)
   ROS_ENABLED_VAL=$(get_kv ROS_ENABLED)
+  ROS_DISTRO_VAL=$(get_kv ROS_DISTRO)
+  ROS_DOMAIN_ID_VAL=$(get_kv ROS_DOMAIN_ID)
   MAVLINK_ENABLED_VAL=$(get_kv MAVLINK_ENABLED)
   CAMERA_SUPPORT_VAL=$(get_kv CAMERA_SUPPORT)
   OPENCR_SUPPORT_VAL=$(get_kv OPENCR_SUPPORT)
   DEV_TOOLS_ENABLED_VAL=$(get_kv DEV_TOOLS_ENABLED)
   PYTHON_TOOLS_ENABLED_VAL=$(get_kv PYTHON_TOOLS_ENABLED)
   RESEARCH_TOOLS_ENABLED_VAL=$(get_kv RESEARCH_TOOLS_ENABLED)
+  ENABLE_UART_VAL=$(get_kv ENABLE_UART)
 
   # Find generated images in the deploy dir (real files only; stable-name
   # symlinks are skipped so we copy the timestamped artifacts once)
@@ -205,7 +223,13 @@ write_summary() {
   if [[ -z "${IMAGE_NAME_VAL}" ]]; then
     IMAGE_NAME_VAL="unnamed"
   fi
-  TARGET_DIR="${OUTPUT_ROOT}/${IMAGE_NAME_VAL}-${GIT_HASH}"
+  # Exports (--no-build) write the summary straight into the chosen directory;
+  # real builds nest image artifacts + summary in <image>-<git_hash>/
+  if [[ ${NO_BUILD} -eq 1 ]]; then
+    TARGET_DIR="${OUTPUT_ROOT}"
+  else
+    TARGET_DIR="${OUTPUT_ROOT}/${IMAGE_NAME_VAL}-${GIT_HASH}"
+  fi
   mkdir -p "${TARGET_DIR}"
 
   # process images and copy artifacts into OUTPUT_ROOT/<image_name>-<git_hash>/
@@ -233,20 +257,25 @@ write_summary() {
   {
     echo "timestamp: ${TS}"
     echo "config: ${CONFIG}"
+    echo "profile: ${PROFILE}"
     echo "machine: ${MACHINE_VAL:-${MACHINE:-}}"
     echo "image_name: ${IMAGE_NAME_VAL}"
     echo "robot_type: ${ROBOT_TYPE_VAL}"
+    echo "robot_model: ${ROBOT_MODEL_VAL}"
     echo "robot_user: ${ROBOT_USER_VAL}"
     echo "robot_pass: ${ROBOT_PASS_VAL}"
     echo "hostname_prefix: ${HOSTNAME_PREFIX_VAL}"
     echo "tailscale_enabled: ${TAILSCALE_ENABLED_VAL}"
     echo "ros_enabled: ${ROS_ENABLED_VAL}"
+    echo "ros_distro: ${ROS_DISTRO_VAL}"
+    echo "ros_domain_id: ${ROS_DOMAIN_ID_VAL}"
     echo "mavlink_enabled: ${MAVLINK_ENABLED_VAL}"
     echo "camera_support: ${CAMERA_SUPPORT_VAL}"
     echo "opencr_support: ${OPENCR_SUPPORT_VAL}"
     echo "dev_tools_enabled: ${DEV_TOOLS_ENABLED_VAL}"
     echo "python_tools_enabled: ${PYTHON_TOOLS_ENABLED_VAL}"
     echo "research_tools_enabled: ${RESEARCH_TOOLS_ENABLED_VAL}"
+    echo "enable_uart: ${ENABLE_UART_VAL}"
     for ((i=0; i<${#WIFI_SSID_VALS[@]}; i++)); do
       echo "wifi_${i}_ssid: ${WIFI_SSID_VALS[$i]}"
       echo "wifi_${i}_pass: ${WIFI_PASS_VALS[$i]}"
