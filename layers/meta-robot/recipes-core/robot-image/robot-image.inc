@@ -1,6 +1,7 @@
 # robot-image.inc - Base image configuration for all robot images
 
 inherit core-image
+inherit robot-image
 
 # Common robot image features
 IMAGE_FEATURES:append = " \
@@ -9,6 +10,10 @@ IMAGE_FEATURES:append = " \
 
 IMAGE_INSTALL:append = " \
     packagegroup-core-ssh-openssh \
+    openssh \
+    openssh-sshd \
+    openssh-sftp-server \
+    tmux \
     robot-user \
     robot-config \
     robot-firstboot \

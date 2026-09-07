@@ -49,4 +49,3 @@ This document describes how to add a new robot type (profile) to the kas/Yocto b
 - Use the upstream `meta-tailscale` layer to provide the Tailscale client/daemon package; keep robot-specific first-boot code responsible only for the `tailscale up --authkey=...` login step.
 - Avoid embedding secrets in summaries. The build pipeline masks passwords and omits auth keys from summaries by default; store auth keys in /etc/robot-config/tailscale_authkey if you choose to auto-join at first boot.
 - Add unit tests or a small VM test to validate first-boot steps where feasible.
-

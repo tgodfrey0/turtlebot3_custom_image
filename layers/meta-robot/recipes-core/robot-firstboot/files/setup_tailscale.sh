@@ -60,15 +60,15 @@ if [[ -s "$AUTHKEY_FILE" ]]; then
         HOSTNAME_ARGS=(--hostname "$HOSTNAME")
     fi
     echo "Connecting to Tailscale with auth key from file..."
-    tailscale up --authkey="file:/etc/robot-config/tailscale_authkey" "${HOSTNAME_ARGS[@]}"
+    tailscale up --ssh --authkey="file:/etc/robot-config/tailscale_authkey" "${HOSTNAME_ARGS[@]}"
 else
     echo ""
     echo "============================================="
     echo "  Tailscale is not configured."
     echo "  To connect, run one of:"
     echo ""
-    echo "    tailscale up                          # Interactive login"
-    echo "    tailscale up --authkey=tskey-auth-...  # With auth key"
+    echo "    tailscale up --ssh                    # Interactive login"
+    echo "    tailscale up --ssh --authkey=tskey-auth-...  # With auth key"
     echo ""
     echo "  Auth keys: https://login.tailscale.com/admin/settings/keys"
     echo "============================================="

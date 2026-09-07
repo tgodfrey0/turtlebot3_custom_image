@@ -1,6 +1,6 @@
 import sys
-import uuid
 import os
+import time
 
 
 def get_hostname() -> str:
@@ -12,14 +12,19 @@ def get_hostname() -> str:
         with open(config_path) as f:
             prefix = f.read().strip() or prefix
 
-    try:
-        mac = uuid.getnode()
-        octets = [f"{(mac >> i) & 0xFF:02X}" for i in range(0, 48, 8)][::-1]
-        # use last three octets separated by dashes, uppercase
-        suffix = sep.join(octets[3:6])
-        return f"{prefix}{sep}{suffix}"
-    except Exception:
-        return f"{prefix}{sep}000000"
+    mac_path = "/sys/class/net/wlan0/address"
+    for _ in range(30):
+        try:
+            with open(mac_path) as f:
+                mac = f.read().strip().replace(":", "")
+            if len(mac) == 12:
+                suffix = sep.join(mac[i:i + 2] for i in range(6, 12, 2)).upper()
+                return f"{prefix}{sep}{suffix}"
+        except OSError:
+            pass
+        time.sleep(1)
+
+    raise RuntimeError("wlan0 MAC address is not available")
 
 
 if __name__ == "__main__":

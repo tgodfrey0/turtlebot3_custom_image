@@ -122,6 +122,7 @@ WIFI_EOF
     touch ${D}/home/${ROBOT_USER}/.setup_hostname
     touch ${D}/home/${ROBOT_USER}/.setup_firewall
     touch ${D}/home/${ROBOT_USER}/.setup_tailscale
+    touch ${D}/home/${ROBOT_USER}/.setup_python_links
 
     if [ "${CAMERA_SUPPORT}" = "1" ]; then
         touch ${D}/home/${ROBOT_USER}/.setup_camera

@@ -67,6 +67,21 @@ to generate conf/local.conf from conf/local.conf.template and run kas.
 - conf/local.conf.template — template; build.sh fills values and writes conf/local.conf
 - tools/kas-tui — interactive TUI (ratatui) to pick profile, machine, extras, and export/build
 
+### Included companion-computer packages
+
+The default general-purpose companion image includes:
+
+- Developer toolchain: `cargo`, `rust`, `gcc`, `g++`, `clang`, `cmake`
+- Python stack: `python3`, `python3-pip`, `python3-venv`, plus `python`/`pip` symlinks
+- Research utilities: `git`, `curl`, `wget`, `htop`, `tmux`, `net-tools`, `iproute2`, `usbutils`, `i2c-tools`, `vim-tiny`, `rsync`, `ca-certificates`, `iw`
+- Network/VPN: `tailscale`, SSH server, WiFi/netplan setup
+
+These groups can be enabled or disabled independently in the TUI or via `build.sh` flags:
+
+- `--dev-tools-enabled 0|1`
+- `--python-tools-enabled 0|1`
+- `--research-tools-enabled 0|1`
+
 Legacy TOML-based configs and the toml2conf tool have been removed. If you
 relied on previous TOML configs, re-create the equivalent options using the
 TUI or by editing conf/local.conf.template and configs/kas/*.yml.

@@ -19,8 +19,8 @@ if command -v python3 &>/dev/null; then
     NEW_HOSTNAME=$(python3 /home/${USERNAME}/setup_scripts/get_hostname.py 2>/dev/null) || NEW_HOSTNAME=""
 fi
 if [[ -z "$NEW_HOSTNAME" ]]; then
-    if [[ -f /sys/class/net/eth0/address ]]; then
-        MAC=$(tr -d ':' < /sys/class/net/eth0/address)
+    if [[ -f /sys/class/net/wlan0/address ]]; then
+        MAC=$(tr -d ':' < /sys/class/net/wlan0/address)
         # take last 6 hex chars and format as AA-BB-CC uppercase
         suffix_lower=${MAC: -6}
         s1=${suffix_lower:0:2}
@@ -30,7 +30,8 @@ if [[ -z "$NEW_HOSTNAME" ]]; then
         suffix=$(echo "${suffix}" | tr '[:lower:]' '[:upper:]')
         NEW_HOSTNAME="${HOSTNAME_PREFIX}-${suffix}"
     else
-        NEW_HOSTNAME="${HOSTNAME_PREFIX}-ROBOT"
+        echo "wlan0 MAC address is not available; cannot create a stable hostname" >&2
+        exit 1
     fi
 fi
 

@@ -36,6 +36,9 @@ while [[ $# -gt 0 ]]; do
     --mavlink-enabled) MAVLINK_ENABLED_VAL="$2"; shift 2;;
     --camera-enabled) CAMERA_SUPPORT_VAL="$2"; shift 2;;
     --opencr-enabled) OPENCR_SUPPORT_VAL="$2"; shift 2;;
+    --dev-tools-enabled) DEV_TOOLS_ENABLED_VAL="$2"; shift 2;;
+    --python-tools-enabled) PYTHON_TOOLS_ENABLED_VAL="$2"; shift 2;;
+    --research-tools-enabled) RESEARCH_TOOLS_ENABLED_VAL="$2"; shift 2;;
     --wifi) WIFI_ARGS+=("$2" "$3"); shift 3;;
     --outdir) OUTPUT_ROOT="$2"; shift 2;;
     --no-build) NO_BUILD=1; shift 1;;
@@ -136,6 +139,9 @@ set_yaml_scalar() {
 [ -n "${MAVLINK_ENABLED_VAL:-}" ] && set_kv MAVLINK_ENABLED "${MAVLINK_ENABLED_VAL}"
 [ -n "${CAMERA_SUPPORT_VAL:-}" ] && set_kv CAMERA_SUPPORT "${CAMERA_SUPPORT_VAL}"
 [ -n "${OPENCR_SUPPORT_VAL:-}" ] && set_kv OPENCR_SUPPORT "${OPENCR_SUPPORT_VAL}"
+[ -n "${DEV_TOOLS_ENABLED_VAL:-}" ] && set_kv DEV_TOOLS_ENABLED "${DEV_TOOLS_ENABLED_VAL}"
+[ -n "${PYTHON_TOOLS_ENABLED_VAL:-}" ] && set_kv PYTHON_TOOLS_ENABLED "${PYTHON_TOOLS_ENABLED_VAL}"
+[ -n "${RESEARCH_TOOLS_ENABLED_VAL:-}" ] && set_kv RESEARCH_TOOLS_ENABLED "${RESEARCH_TOOLS_ENABLED_VAL}"
 # WiFi settings from WIFI_ARGS array
 WIFI_IDX=0
 WIFI_SSID_VALS=()
@@ -189,6 +195,9 @@ write_summary() {
   MAVLINK_ENABLED_VAL=$(get_kv MAVLINK_ENABLED)
   CAMERA_SUPPORT_VAL=$(get_kv CAMERA_SUPPORT)
   OPENCR_SUPPORT_VAL=$(get_kv OPENCR_SUPPORT)
+  DEV_TOOLS_ENABLED_VAL=$(get_kv DEV_TOOLS_ENABLED)
+  PYTHON_TOOLS_ENABLED_VAL=$(get_kv PYTHON_TOOLS_ENABLED)
+  RESEARCH_TOOLS_ENABLED_VAL=$(get_kv RESEARCH_TOOLS_ENABLED)
 
   # Find generated images in the deploy dir (real files only; stable-name
   # symlinks are skipped so we copy the timestamped artifacts once)
@@ -235,6 +244,9 @@ write_summary() {
     echo "mavlink_enabled: ${MAVLINK_ENABLED_VAL}"
     echo "camera_support: ${CAMERA_SUPPORT_VAL}"
     echo "opencr_support: ${OPENCR_SUPPORT_VAL}"
+    echo "dev_tools_enabled: ${DEV_TOOLS_ENABLED_VAL}"
+    echo "python_tools_enabled: ${PYTHON_TOOLS_ENABLED_VAL}"
+    echo "research_tools_enabled: ${RESEARCH_TOOLS_ENABLED_VAL}"
     for ((i=0; i<${#WIFI_SSID_VALS[@]}; i++)); do
       echo "wifi_${i}_ssid: ${WIFI_SSID_VALS[$i]}"
       echo "wifi_${i}_pass: ${WIFI_PASS_VALS[$i]}"

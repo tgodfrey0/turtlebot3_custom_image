@@ -41,6 +41,9 @@ struct App {
     tailscale: bool,
     tailscale_authkey: String,
     ros_distro: Option<String>,
+    dev_tools: bool,
+    python_tools: bool,
+    research_tools: bool,
 
     message: String,
     mode: Mode,
@@ -77,6 +80,9 @@ impl Default for App {
             tailscale: true,
             tailscale_authkey: "".into(),
             ros_distro: None,
+            dev_tools: true,
+            python_tools: true,
+            research_tools: true,
             message: "Enter=edit/select, Space=toggle, i=import, a=add-wifi, p=preview, e=export, b=build, q=quit".into(),
             mode: Mode::Normal,
             output: Vec::new(),
@@ -93,7 +99,7 @@ impl Default for App {
 }
 
 const BASE_FIELDS: usize = 7;
-const FLAG_FIELDS: usize = 3;
+const FLAG_FIELDS: usize = 6;
 
 impl App {
     fn field_count(&self) -> usize {
@@ -428,6 +434,9 @@ fn build_common_args(app: &App) -> Vec<String> {
     }
     if !app.tailscale_authkey.is_empty() { args.push("--authkey".into()); args.push(app.tailscale_authkey.clone()); }
     args.push("--tailscale-enabled".into()); args.push((if app.tailscale {"1"} else {"0"}).into());
+    args.push("--dev-tools-enabled".into()); args.push((if app.dev_tools {"1"} else {"0"}).into());
+    args.push("--python-tools-enabled".into()); args.push((if app.python_tools {"1"} else {"0"}).into());
+    args.push("--research-tools-enabled".into()); args.push((if app.research_tools {"1"} else {"0"}).into());
     if let Some(ref distro) = app.ros_distro {
         args.push("--ros-distro".into()); args.push(distro.clone());
     }
@@ -528,6 +537,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             params.push(format!("Tailscale: {}", if app.tailscale {"enabled"} else {"disabled"}));
             params.push(format!("Tailscale key: {}", if app.tailscale_authkey.is_empty() {"(none)"} else {"(set)"}));
+            params.push(format!("Dev tools: {}", if app.dev_tools {"enabled"} else {"disabled"}));
+            params.push(format!("Python tools: {}", if app.python_tools {"enabled"} else {"disabled"}));
+            params.push(format!("Research tools: {}", if app.research_tools {"enabled"} else {"disabled"}));
             params.push(format!("ROS2: {}", ros_label));
 
             let param_items: Vec<ListItem> = params.iter().map(|p| ListItem::new(Spans::from(Span::raw(p.clone())))).collect();
@@ -763,7 +775,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 6 => { app.mode = Mode::Editing { field: 6, buffer: app.robot_pass.clone() } }
                                 i if i >= BASE_FIELDS && i < flags_base => {}
                                 i if i == flags_base + 1 => { app.mode = Mode::Editing { field: i, buffer: app.tailscale_authkey.clone() } }
-                                i if i == flags_base + 2 => {
+                                i if i == flags_base + 5 => {
                                     let current = app.ros_distro.as_deref().unwrap_or("disabled");
                                     let idx = ROS_DISTROS.iter().position(|&d| d == current).unwrap_or(0);
                                     let opts: Vec<String> = ROS_DISTROS.iter().map(|s| s.to_string()).collect();
@@ -777,7 +789,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                             let flags_base = BASE_FIELDS + wifi_count;
                             match app.selected {
                                 i if i == flags_base => { app.tailscale = !app.tailscale; }
-                                i if i == flags_base + 2 => {
+                                i if i == flags_base + 2 => { app.dev_tools = !app.dev_tools; }
+                                i if i == flags_base + 3 => { app.python_tools = !app.python_tools; }
+                                i if i == flags_base + 4 => { app.research_tools = !app.research_tools; }
+                                i if i == flags_base + 5 => {
                                     let opts: Vec<String> = ROS_DISTROS.iter().map(|s| s.to_string()).collect();
                                     let current = app.ros_distro.as_deref().unwrap_or("disabled");
                                     let idx = ROS_DISTROS.iter().position(|&d| d == current).unwrap_or(0);
