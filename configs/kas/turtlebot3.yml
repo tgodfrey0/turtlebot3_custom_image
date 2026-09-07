@@ -1,0 +1,27 @@
+header:
+  version: 14
+  includes:
+    - generic.yml
+    - local-overrides.yml
+
+machine: raspberrypi4-64
+distro: uav-companion
+target: robot-image-ros
+
+repos:
+  meta-robot-turtlebot3:
+    path: layers/meta-robot-turtlebot3
+
+  meta-tailscale:
+    path: layers/meta-tailscale
+    url: https://github.com/ChristophHandschuh/meta-tailscale.git
+    branch: master
+    layers:
+      .:
+
+  meta-ros:
+    path: layers/meta-ros
+    url: https://github.com/ros/meta-ros.git
+    branch: scarthgap
+    layers:
+      meta-ros:

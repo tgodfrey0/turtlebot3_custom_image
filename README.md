@@ -1,163 +1,153 @@
-# Custom TurtleBot3 Image
+# Robot Image Builder
 
-This repo provides a way to build a TurtleBot3 image with the necessary setup already complete. It works using Packer and is currently in the early stages of development. The aim of this is to make it easier to provision many TurtleBot3s for use in a swarm.
+Build custom Yocto-based Linux images for robot companion computers.
+Originally built for provisioning TurtleBot3 robots in a swarm; generalised to
+support any single-board computer (Raspberry Pi, Jetson, etc.).
 
 **Please send any feedback or questions to Toby Godfrey ([t.godfrey@soton.ac.uk](mailto:t.godfrey@soton.ac.uk)).**
 
 ## Prerequisites
 
-- Python 3.11+
-- Podman (for running the Packer container)
-- bmap-tools (for faster flashing with bmaptool — `sudo apt install bmap-tools`)
+- Ubuntu 22.04 or 24.04 (other supported distros: Fedora, Debian, openSUSE)
+- ~50-100GB free disk space
+- 8GB+ RAM recommended
 
-### Python Dependencies
-
-Install the required Python packages:
+### Install host packages
 
 ```bash
-pip install -r requirements.txt
+sudo apt install gawk wget git diffstat unzip texinfo gcc build-essential \
+    chrpath socat cpio python3 python3-pip python3-pexpect python3-git \
+    python3-jinja2 python3-subunit xz-utils debianutils iputils-ping \
+    libacl1 liblz4-tool file locales zstd
+
+sudo locale-gen en_US.UTF-8
 ```
 
-## Usage
-
-The build system uses TOML configuration files. Configuration files are stored in the `configs/` directory.
-
-### Quick Start
-
-1. Copy an example config and customise it:
+### Or use pixi (recommended)
 
 ```bash
-cp configs/example.toml configs/my_robot.toml
-# Edit configs/my_robot.toml with your settings
+pixi install
 ```
 
-2. Run the build:
+## Quick Start (kas + build wrapper)
 
-```bash
-python build.py --config configs/my_robot.toml
-```
+Install kas (e.g., pip install kas) and ensure git, python3 are available.
 
-### Configuration
+# Generate local.conf and build (recommended):
+# - Use the build wrapper which generates conf/local.conf from template and runs kas
+./build.sh --config configs/kas/build-config.yml --machine raspberrypi4-64
 
-The configuration file controls all build options:
+# Preview generated conf only:
+./build.sh --config configs/kas/build-config.yml --machine raspberrypi4-64 --dry-run
 
-- **Model**: Set `model.type` to `waffle` or `burger`
-- **Network**: Optional `[[network]]` sections - use TOML array syntax (double brackets) to configure one or more WiFi networks
-- **Compression**: Set `build.skip_compression` to `true` to skip `.xz` compression
-- **Version**: Auto-detected from git tags, or set `image.version` manually
-- **ROS Distro**: Set `ros.distro` to select the ROS2 distribution. Valid values: `humble` (Ubuntu 22.04), `iron` (22.04), `jazzy` (24.04), `rolling` (24.04). The Ubuntu base image URL is auto-derived from the selected distro, or you can override it in `[source]`.
+# Interactive TUI (ratatui) to pick profile/options and export/build:
+# Build and install binary to repo root:
+# cd tools/kas-tui && ./install_and_place.sh
+# Run the TUI binary from repo root:
+# ./builder-tui --profile turtlebot3 --export --machine raspberrypi4-64
+# or run in interactive mode (no --export) to use the full UI.
 
-See `configs/example.toml` for a complete example with commented networks, and `configs/waffle_with_network.toml` for an example with multiple networks configured.
+# Legacy: pixi-based workflow (kept for compatibility):
+# pixi run setup-env
+# source workspace/poky/oe-init-build-env workspace/build
+# pixi run build configs/tb_jazzy.toml
 
-#### Multiple WiFi Networks
 
-You can configure multiple WiFi networks using TOML array syntax:
 
-```toml
-[[network]]
-ssid = "Network1"
-password = "password1"
+## Configuration (kas)
 
-[[network]]
-ssid = "Network2"
-password = "password2"
+The project now uses kas workspace configs in configs/kas/. Use the build wrapper
+to generate conf/local.conf from conf/local.conf.template and run kas.
 
-[[network]]
-ssid = "OpenNetwork"
-# Leave password empty for open networks
-```
+- configs/kas/generic.yml  — base kas workspace (poky, meta-openembedded, meta-raspberrypi, meta-robot)
+- configs/kas/turtlebot3.yml — includes generic.yml and adds meta-ros
+- The generic profile builds `robot-image` without TurtleBot3 or OpenCR.
+- The TurtleBot3 profile builds `robot-image-ros`; OpenCR is enabled for that
+  profile and can be disabled with `--opencr-enabled 0`.
+- conf/local.conf.template — template; build.sh fills values and writes conf/local.conf
+- tools/kas-tui — interactive TUI (ratatui) to pick profile, machine, extras, and export/build
 
-All configured networks will be added to the netplan configuration and the robot will attempt to connect to them in order of priority.
+### Included companion-computer packages
 
-### Build Options
+The default general-purpose companion image includes:
 
-```bash
-# Basic build
-python build.py --config configs/my_config.toml
+- Developer toolchain: `cargo`, `rust`, `gcc`, `g++`, `clang`, `cmake`
+- Python stack: `python3`, `python3-pip`, `python3-venv`, plus `python`/`pip` symlinks
+- Research utilities: `git`, `curl`, `wget`, `htop`, `tmux`, `net-tools`, `iproute2`, `usbutils`, `i2c-tools`, `vim-tiny`, `rsync`, `ca-certificates`, `iw`
+- Network/VPN: `tailscale`, SSH server, WiFi/netplan setup
 
-# Dry run (validate config without building)
-python build.py --config configs/my_config.toml --dry-run
+These groups can be enabled or disabled independently in the TUI or via `build.sh` flags:
 
-# Build without confirmation prompt
-python build.py --config configs/my_config.toml --yes
+- `--dev-tools-enabled 0|1`
+- `--python-tools-enabled 0|1`
+- `--research-tools-enabled 0|1`
 
-# Verbose output
-python build.py --config configs/my_config.toml --verbose
+Legacy TOML-based configs and the toml2conf tool have been removed. If you
+relied on previous TOML configs, re-create the equivalent options using the
+TUI or by editing conf/local.conf.template and configs/kas/*.yml.
 
-# Custom Packer file
-python build.py --config configs/my_config.toml --packer-file my_packer.json
-```
+## Output
 
-### Output
-
-The build outputs the following files:
-- `<name>-<model>-image-<version>.img.xz` — compressed disk image (if compression enabled)
-- `<name>-<model>-image-<version>.img.xz.bmap` — block map for bmaptool (if sparse enabled)
-
-If compression is disabled (`skip_compression = true`), the raw `.img` and `.img.bmap` files are produced instead.
-
-For example: `tb3-waffle_pi-image-v1.2.3.img.xz` + `tb3-waffle_pi-image-v1.2.3.img.xz.bmap`
+- `tmp/deploy/images/<machine>/robot-image-<machine>.wic` — raw disk image
+- `tmp/deploy/images/<machine>/robot-image-<machine>.wic.bmap` — block map
 
 ### Flashing
 
-The `.bmap` file allows `bmaptool` to skip empty blocks, dramatically speeding up flashing.
-
-**Prerequisite:** `sudo apt install bmap-tools`
-
-**Recommended — bmaptool (fastest):**
-
 ```bash
-sudo bmaptool copy <CUSTOM_IMAGE>.img.xz /dev/<RPI MicroSD>
+# Using bmaptool (recommended)
+sudo bmaptool copy tmp/deploy/images/raspberrypi4-64/robot-image-*.wic /dev/sdX
+
+# Using dd
+sudo dd if=tmp/deploy/images/raspberrypi4-64/robot-image-*.wic of=/dev/sdX status=progress
 ```
 
-**Alternative — dd (slower, no bmap needed):**
+**MAKE SURE YOU SELECT THE CORRECT DRIVE.**
 
+## First Boot
+
+On first boot, one-shot services run (each gated by a `.setup_*` marker file):
+
+- **Hostname** — set to `<prefix>-<3 MAC octets>` (e.g. `tb3-ab-cd-ef`)
+- **WiFi** — configured via netplan from stored JSON
+- **Firewall** — SSH port opened in UFW
+- **Tailscale** — prompted for auth key if not configured
+- **Camera** — GPU memory configured (if enabled)
+- **OpenCR** — motor controller firmware flashed (TurtleBot3 only)
+
+Re-run any service by recreating its marker file and rebooting:
 ```bash
-xz -dc <CUSTOM_IMAGE>.img.xz | sudo dd of=/dev/<RPI MicroSD> status=progress
+touch /home/robot/.setup_hostname
+sudo reboot
 ```
 
-**MAKE SURE YOU SELECT THE CORRECT DRIVE -- the above commands will wipe the drive!**
+## Architecture
 
-The address of the MicroSD card can be found with `sudo fdisk -l`.
+```
+layers/meta-robot/          # Custom Yocto layer
+├── classes/                # Shared image classes
+├── recipes-core/           # Core recipes (user, config, first-boot)
+├── recipes-robot/          # Robot-specific recipes (turtlebot3)
+├── recipes-connectivity/   # Network/VPN recipes
+└── wic/                    # Disk layout templates
 
-You may wish to use something a bit more friendly than `dd`, such as [Balena Etcher](https://etcher.balena.io/).
+tools/toml2conf/            # Rust: TOML → local.conf translator
+configs/                    # Robot build configurations
+scripts/                    # Workspace setup scripts
+conf/                       # Shared Yocto build settings
+```
 
-### After Flashing
+### Adding a New Robot
 
-The image is 10GB to speed up creation and flashing. After, the image has been flashed to the MicroSD card, the partition size can be expanded to fill the rest of the drive.
+1. Create `layers/meta-robot/recipes-robot/<type>/` directory
+2. Add recipes for robot-specific packages
+3. Add first-boot scripts to `robot-firstboot` if needed
+4. Set `[robot] type = "<type>"` in your TOML config
+5. Build with `bitbake robot-image` or `bitbake robot-image-ros`
 
-This can be done using something like [GParted](https://gparted.org/).
+## Build Time
 
-You can then log into the Pi with the username `robot` and the password `turtlebot3`.
+First build: **4-8 hours** (downloading and compiling from source).
+Subsequent builds: **15-30 minutes** (with sstate-cache).
 
-## Features
-
-This script completes several tasks automatically.
-
-When creating the image:
-
-- Packages are updated
-- A hostname `systemd` service is created
-- QoL improvements (e.g. disable auto-sleep)
-- Install ROS2 (configurable: Humble, Jazzy, Rolling, etc.)
-- Install the TurtleBot3 ROS packages
-- Install the OpenCR packages
-- Edit the firmware config to allow the Pi Camera to be used
-- Enables SSH access
-- Configures network details to allow for WiFi connection on boot (if the `[[network]]` sections are included in the config)
-- Supports multiple WiFi networks for better connectivity options
-
-When booting for the first time:
-
-- The hostname is changed to `turtlebot_XX_XX_XX` (where `XX_XX_XX` are the last three octets of the robot's MAC address)
-  - This only runs if the file `/home/robot/.setup_hostname` is present. If you play with the hostname and want to reset it touch that file and reboot and the service will run.
-- The OpenCR board is configured
-  - This runs at boot so the RPi should be connected to the OpenCR board during boot. This service also only runs if the file `/home/robot/.setup_opencr` is present so if the board needs to be reconfigured just recreate that file and reboot.
-- A firewall exception is added for SSH
-  - This only runs if the file `/home/robot/.setup_firewall` is present.
-- The Pi Camera is enabled in the `/boot/firmware/` configuration file
-  - This only runs if the file `/home/robot/.setup_camera` is present.
-
-If you want to automatically launch the TurtleBot3 bringup package, enable the `bringup.service` service.
-
-### **_After booting the first time, the system must be restarted for several changes to take effect_**
+Yocto builds from source, not from pre-built packages. This gives full
+control over the system but requires patience on first builds.

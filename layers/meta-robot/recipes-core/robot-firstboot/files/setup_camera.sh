@@ -1,0 +1,9 @@
+#!/bin/bash
+set -eux -o pipefail
+
+read USERNAME < /etc/robot-user
+
+if [[ -f /home/${USERNAME}/.setup_camera ]]; then
+    echo -e '#start_x=1\n#gpu_mem=128' >> /boot/firmware/config.txt
+    rm /home/${USERNAME}/.setup_camera
+fi

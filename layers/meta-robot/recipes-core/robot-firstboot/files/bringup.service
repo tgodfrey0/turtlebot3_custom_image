@@ -1,0 +1,13 @@
+[Unit]
+Description=Robot Bringup service
+After=fix-permissions.service network-online.target ros_setup.service tailscale_setup.service
+Wants=network-online.target
+
+[Service]
+Environment=USERNAME=@ROBOT_USER@
+ExecStart=/home/@ROBOT_USER@/setup_scripts/bringup.sh
+Type=oneshot
+User=root
+
+[Install]
+WantedBy=multi-user.target

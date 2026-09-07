@@ -1,0 +1,13 @@
+[Unit]
+Description=Set python and pip aliases for the robot user
+After=fix-permissions.service
+Wants=fix-permissions.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/home/@ROBOT_USER@/setup_scripts/setup_python_links.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

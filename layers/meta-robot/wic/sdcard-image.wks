@@ -1,0 +1,16 @@
+# sdcard-image.wks - WIC kickstart file for Raspberry Pi SD card images
+#
+# Defines the partition layout for Raspberry Pi 4/5 SD card images.
+# Boot partition (FAT32) + rootfs (ext4).
+
+# Boot partition - 256MB FAT32
+part --source bootimg-bmp --fstype vfat --label boot --active --align 4 --size ${BOOT_PARTITION_SIZE:-256}
+
+# Root filesystem - ext4, remainder of disk
+part --source rootfs --fstype ext4 --label rootfs --align 4
+
+# Use grub-efi or u-boot as bootloader
+boot --loader u-boot --splash ${DEPLOY_DIR}/images/${MACHINE}/boot.bmp
+
+# Image alignment
+# Align to 4MB boundaries for optimal SD card performance

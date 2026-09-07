@@ -1,0 +1,11 @@
+[package]
+name = "kas-tui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.26"
+ratatui = "0.20"
+anyhow = "1.0"
+libc = "0.2"

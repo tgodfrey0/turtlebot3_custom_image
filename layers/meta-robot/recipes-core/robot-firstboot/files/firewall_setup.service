@@ -1,0 +1,12 @@
+[Unit]
+Description=Firewall setting service
+After=fix-permissions.service network.target
+
+[Service]
+Environment=USERNAME=@ROBOT_USER@
+ExecStart=/home/@ROBOT_USER@/setup_scripts/setup_firewall.sh
+Type=oneshot
+User=root
+
+[Install]
+WantedBy=multi-user.target

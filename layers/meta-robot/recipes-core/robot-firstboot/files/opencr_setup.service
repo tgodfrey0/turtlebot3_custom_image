@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenCR setup service
+After=fix-permissions.service
+
+[Service]
+Environment=USERNAME=@ROBOT_USER@
+ExecStart=/home/@ROBOT_USER@/setup_scripts/setup_opencr.sh
+Type=oneshot
+User=root
+
+[Install]
+WantedBy=multi-user.target

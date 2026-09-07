@@ -1,0 +1,14 @@
+[Unit]
+Description=Tailscale VPN first-boot setup
+After=fix-permissions.service hostname_setup.service network_setup.service network-online.target tailscaled.service
+Wants=hostname_setup.service network_setup.service network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+User=root
+Environment=USERNAME=@ROBOT_USER@
+ExecStart=/home/@ROBOT_USER@/setup_scripts/setup_tailscale.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Network setting service
+After=fix-permissions.service systemd-networkd.service
+Before=network-online.target
+
+[Service]
+Environment=USERNAME=@ROBOT_USER@
+ExecStart=/home/@ROBOT_USER@/setup_scripts/setup_network.sh
+Type=oneshot
+User=root
+
+[Install]
+WantedBy=multi-user.target
