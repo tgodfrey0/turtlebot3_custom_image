@@ -93,6 +93,8 @@ network:
         eth0:
             dhcp4: true
             optional: true
+            nameservers:
+                addresses: [8.8.8.8, 8.8.4.4]
     version: 2
     renderer: networkd
     wifis:
@@ -115,6 +117,8 @@ WIFI_EOF
 
         echo "            dhcp4: true" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
         echo "            dhcp6: true" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+        echo "            nameservers:" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+        echo "                addresses: [8.8.8.8, 8.8.4.4]" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
     fi
 
     # Create first-boot marker files

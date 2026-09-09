@@ -24,3 +24,5 @@ with open(netplan_file, 'a') as f:
 
     f.write('        dhcp4: true\n')
     f.write('        dhcp6: true\n')
+    f.write('        nameservers:\n')
+    f.write('            addresses: [8.8.8.8, 8.8.4.4]\n')
