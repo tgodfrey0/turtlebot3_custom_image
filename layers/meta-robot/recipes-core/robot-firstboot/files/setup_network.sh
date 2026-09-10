@@ -18,7 +18,7 @@ network:
             dhcp4: true
             optional: true
             nameservers:
-                addresses: [8.8.8.8, 8.8.4.4]
+                addresses: [152.78.110.110, 8.8.8.8, 8.8.4.4]
     version: 2
     renderer: networkd
     wifis:

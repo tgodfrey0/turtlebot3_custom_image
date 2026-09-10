@@ -94,7 +94,7 @@ network:
             dhcp4: true
             optional: true
             nameservers:
-                addresses: [8.8.8.8, 8.8.4.4]
+                addresses: [152.78.110.110, 8.8.8.8, 8.8.4.4]
     version: 2
     renderer: networkd
     wifis:
@@ -118,8 +118,17 @@ WIFI_EOF
         echo "            dhcp4: true" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
         echo "            dhcp6: true" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
         echo "            nameservers:" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
-        echo "                addresses: [8.8.8.8, 8.8.4.4]" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
+        echo "                addresses: [152.78.110.110, 8.8.8.8, 8.8.4.4]" >> ${D}${sysconfdir}/netplan/50-wifi.yaml
     fi
+
+    # Guaranteed DNS fallback via systemd-resolved global config (drop-in avoids
+    # conffile conflicts with systemd's own resolved.conf). DHCP-issued DNS takes
+    # precedence; this is only consulted when nothing else is configured.
+    install -d -m 0755 ${D}${sysconfdir}/systemd/resolved.conf.d
+    cat > ${D}${sysconfdir}/systemd/resolved.conf.d/zz-fallback.conf << 'RESOLVED_EOF'
+[Resolve]
+FallbackDNS=152.78.110.110 8.8.8.8 8.8.4.4
+RESOLVED_EOF
 
     # Create first-boot marker files
     # These are deleted by the first-boot scripts after they run
@@ -136,6 +145,7 @@ WIFI_EOF
 FILES:${PN} = " \
     ${sysconfdir}/robot-config/* \
     ${sysconfdir}/netplan/* \
+    ${sysconfdir}/systemd/resolved.conf.d/* \
     /home/${ROBOT_USER}/.config/* \
     /home/${ROBOT_USER}/.setup_* \
 "

@@ -25,6 +25,14 @@ repos:
       meta-oe:
       meta-python:
       meta-networking:
+      meta-filesystems:
+
+  meta-virtualization:
+    path: layers/meta-virtualization
+    url: https://git.yoctoproject.org/git/meta-virtualization
+    branch: scarthgap
+    layers:
+      .:
 
   meta-raspberrypi:
     path: layers/meta-raspberrypi

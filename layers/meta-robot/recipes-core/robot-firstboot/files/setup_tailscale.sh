@@ -61,6 +61,9 @@ if [[ -s "$AUTHKEY_FILE" ]]; then
     fi
     echo "Connecting to Tailscale with auth key from file..."
     tailscale up --ssh --authkey="file:/etc/robot-config/tailscale_authkey" "${HOSTNAME_ARGS[@]}"
+    # Keep MagicDNS active and routed through systemd-resolved so name
+    # resolution works even on networks that block public DNS servers.
+    tailscale set --accept-dns=true
 else
     echo ""
     echo "============================================="

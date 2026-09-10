@@ -17,6 +17,7 @@ IMAGE_INSTALL:append = " \
     robot-user \
     robot-config \
     robot-firstboot \
+    robot-udev \
     common-packages \
     tailscale \
     packagegroup-core-full-cmdline \
@@ -32,6 +33,7 @@ IMAGE_INSTALL:append = " \
     wpa-supplicant \
     netplan \
     kbd \
+    podman \
     "
 
 # Minimal image size - always grow to fit contents exactly
@@ -54,7 +56,7 @@ ROBOT_USER ??= "robot"
 ROBOT_PASS ??= "changeme"
 
 EXTRA_USERS_PARAMS = "\
-    useradd -m -s /bin/bash -G sudo,dialout,input ${ROBOT_USER}; \
+    useradd -m -s /bin/bash -G sudo,dialout,tty,input ${ROBOT_USER}; \
 "
 
 # Patch the password hash directly into /etc/shadow after do_rootfs.

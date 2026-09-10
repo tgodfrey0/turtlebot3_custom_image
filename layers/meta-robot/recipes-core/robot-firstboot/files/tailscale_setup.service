@@ -1,7 +1,7 @@
 [Unit]
 Description=Tailscale VPN first-boot setup
-After=fix-permissions.service hostname_setup.service network_setup.service network-online.target tailscaled.service
-Wants=hostname_setup.service network_setup.service network-online.target tailscaled.service
+After=fix-permissions.service hostname_setup.service network_setup.service network-online.target systemd-resolved.service tailscaled.service
+Wants=hostname_setup.service network_setup.service network-online.target systemd-resolved.service tailscaled.service
 
 [Service]
 Type=oneshot
